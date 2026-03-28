@@ -36,7 +36,11 @@ async def get_conflicts(
     try:
         events = await fetch_acled_events(client, country, start_date, end_date)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"ACLED API error: {e}")
+        logger.error("Error while fetching events from ACLED", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch conflict data from ACLED",
+        )
 
     severity = calculate_severity(events)
 
