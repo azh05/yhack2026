@@ -1,0 +1,158 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-surface: #0a0e17;
+  --color-surface-50: #0d1220;
+  --color-surface-100: #111827;
+  --color-surface-200: #161e2e;
+  --color-surface-300: #1e2a3a;
+
+  --color-severity-low: #facc15;
+  --color-severity-moderate: #f97316;
+  --color-severity-high: #ef4444;
+  --color-severity-extreme: #991b1b;
+
+  --color-accent: #3b82f6;
+  --color-accent-glow: #60a5fa;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-surface);
+  color: #e2e8f0;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
+
+/* ---- Mapbox Overrides ---- */
+.mapboxgl-map {
+  font-family: var(--font-body) !important;
+}
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+.mapboxgl-ctrl-logo {
+  opacity: 0.4 !important;
+}
+.mapboxgl-ctrl-group {
+  background: rgba(13, 18, 32, 0.9) !important;
+  border: 1px solid rgba(59, 130, 246, 0.15) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+.mapboxgl-ctrl-group button {
+  width: 32px !important;
+  height: 32px !important;
+  border-color: rgba(59, 130, 246, 0.1) !important;
+}
+.mapboxgl-ctrl-group button:not(:disabled):hover {
+  background: rgba(59, 130, 246, 0.1) !important;
+}
+.mapboxgl-ctrl-group button span {
+  filter: invert(1) brightness(0.8);
+}
+.mapboxgl-popup-content {
+  background: rgba(13, 18, 32, 0.95) !important;
+  border: 1px solid rgba(59, 130, 246, 0.2) !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  color: #e2e8f0 !important;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+}
+.mapboxgl-popup-tip {
+  border-top-color: rgba(13, 18, 32, 0.95) !important;
+}
+.mapboxgl-popup-close-button {
+  color: #94a3b8 !important;
+  font-size: 18px !important;
+  padding: 4px 8px !important;
+}
+.mapboxgl-popup-close-button:hover {
+  color: #e2e8f0 !important;
+  background: transparent !important;
+}
+
+/* ---- Conflict Marker Pulse ---- */
+@keyframes markerPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.4; }
+}
+.conflict-marker-pulse {
+  animation: markerPulse 2s ease-in-out infinite;
+}
+
+/* ---- Glass Morphism Utility ---- */
+@layer utilities {
+  .glass {
+    background: rgba(13, 18, 32, 0.8);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+  }
+  .glass-subtle {
+    background: rgba(13, 18, 32, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(59, 130, 246, 0.06);
+  }
+  .glass-hover {
+    transition: all 0.2s ease;
+  }
+  .glass-hover:hover {
+    background: rgba(22, 30, 46, 0.9);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+  .text-glow {
+    text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  .border-glow {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.1), inset 0 0 15px rgba(59, 130, 246, 0.05);
+  }
+}
+
+/* ---- Noise Texture Overlay ---- */
+.noise-overlay::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
