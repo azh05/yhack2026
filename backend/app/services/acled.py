@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 
@@ -13,6 +14,7 @@ ACLED_API_URL = "https://acleddata.com/api/acled/read"
 
 _access_token: str | None = None
 _token_expires_at: float = 0
+_token_lock = asyncio.Lock()
 
 
 async def _get_access_token(client: httpx.AsyncClient) -> str:
@@ -22,23 +24,28 @@ async def _get_access_token(client: httpx.AsyncClient) -> str:
     if _access_token and time.time() < _token_expires_at:
         return _access_token
 
-    settings = get_settings()
-    resp = await client.post(
-        ACLED_TOKEN_URL,
-        data={
-            "username": settings.acled_email,
-            "password": settings.acled_password,
-            "grant_type": "password",
-            "client_id": "acled",
-        },
-    )
-    resp.raise_for_status()
-    token_data = resp.json()
-    _access_token = token_data["access_token"]
-    # Expire 5 min early to be safe (token lasts 24h)
-    _token_expires_at = time.time() + token_data.get("expires_in", 86400) - 300
-    logger.info("ACLED OAuth token acquired")
-    return _access_token
+    async with _token_lock:
+        # Double-check after acquiring lock
+        if _access_token and time.time() < _token_expires_at:
+            return _access_token
+
+        settings = get_settings()
+        resp = await client.post(
+            ACLED_TOKEN_URL,
+            data={
+                "username": settings.acled_email,
+                "password": settings.acled_password,
+                "grant_type": "password",
+                "client_id": "acled",
+            },
+        )
+        resp.raise_for_status()
+        token_data = resp.json()
+        _access_token = token_data["access_token"]
+        # Expire 5 min early to be safe (token lasts 24h)
+        _token_expires_at = time.time() + token_data.get("expires_in", 86400) - 300
+        logger.info("ACLED OAuth token acquired")
+        return _access_token
 
 
 async def fetch_acled_events(
