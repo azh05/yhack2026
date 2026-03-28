@@ -49,14 +49,38 @@ async def fetch_acled_events(
     limit: int = 500,
 ) -> list[ACLEDEvent]:
     token = await _get_access_token(client)
-    params = {
-        "country": country,
-        "event_date": f"{start_date}|{end_date}",
-        "event_date_where": "BETWEEN",
-        "limit": str(limit),
-    }
     headers = {"Authorization": f"Bearer {token}"}
-    resp = await client.get(ACLED_API_URL, params=params, headers=headers)
-    resp.raise_for_status()
-    data = resp.json().get("data", [])
-    return [ACLEDEvent.model_validate(item) for item in data]
+
+    events: list[ACLEDEvent] = []
+    page = 1
+
+    # Paginate through ACLED results until we either exhaust the data or
+    # reach the overall caller-specified limit.
+    while len(events) < limit:
+        remaining = limit - len(events)
+        page_limit = remaining
+        params = {
+            "country": country,
+            "event_date": f"{start_date}|{end_date}",
+            "event_date_where": "BETWEEN",
+            "limit": str(page_limit),
+            "page": str(page),
+        }
+        resp = await client.get(ACLED_API_URL, params=params, headers=headers)
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+
+        if not data:
+            break
+
+        page_events = [ACLEDEvent.model_validate(item) for item in data]
+        events.extend(page_events)
+
+        # If we received fewer results than requested for this page,
+        # there are no more pages to fetch.
+        if len(data) < page_limit:
+            break
+
+        page += 1
+
+    return events

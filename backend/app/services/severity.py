@@ -1,5 +1,4 @@
 import math
-from datetime import datetime
 
 import pandas as pd
 
@@ -7,7 +6,7 @@ from app.models.acled import ACLEDEvent, SeverityScore
 
 
 def _scale_log(value: float, base: float = 2.0) -> float:
-    return min(10.0, 1.0 + math.log2(1.0 + value))
+    return min(10.0, 1.0 + math.log(1.0 + value, base))
 
 
 def calculate_severity(events: list[ACLEDEvent]) -> SeverityScore:

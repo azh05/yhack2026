@@ -46,9 +46,15 @@ async def get_conflicts(
 
     # Cache in background
     try:
-        asyncio.get_event_loop().run_in_executor(None, upsert_events, events)
+        loop = asyncio.get_running_loop()
+        future = loop.run_in_executor(None, upsert_events, events)
+        future.add_done_callback(
+            lambda f: logger.warning("Failed to cache events", exc_info=f.exception())
+            if f.exception()
+            else None
+        )
     except Exception:
-        logger.warning("Failed to cache events", exc_info=True)
+        logger.warning("Failed to schedule cache update", exc_info=True)
 
     return _build_geojson(events, severity)
 

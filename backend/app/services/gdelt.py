@@ -26,11 +26,16 @@ async def fetch_gdelt_news(
         raw_articles = resp.json().get("articles", [])
         articles = []
         for a in raw_articles:
+            raw_tone = a.get("tone", 0)
+            try:
+                tone = float(raw_tone)
+            except (TypeError, ValueError):
+                tone = 0.0
             articles.append(
                 GDELTArticle(
                     url=a.get("url", ""),
                     title=a.get("title", ""),
-                    tone=float(a.get("tone", 0)),
+                    tone=tone,
                     source_country=a.get("sourcecountry", ""),
                     seendate=a.get("seendate", ""),
                 )
