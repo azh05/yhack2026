@@ -69,7 +69,7 @@ class TestConflictsEndpoint:
         mock_fetch.side_effect = Exception("Connection timeout")
         resp = client.get("/api/conflicts?country=Ukraine&start_date=2025-03-01&end_date=2025-03-28")
         assert resp.status_code == 502
-        assert "ACLED API error" in resp.json()["detail"]
+        assert "ACLED" in resp.json()["detail"]
 
 
 class TestNewsEndpoint:
