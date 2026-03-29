@@ -23,6 +23,89 @@ const EVENT_TYPE_MAP: Record<string, string> = {
   "Strategic developments": "strategic",
 };
 
+// Comprehensive country → region mapping for all 148 ACLED countries
+const COUNTRY_REGION: Record<string, string> = {
+  // Middle East & North Africa
+  Palestine: "Middle East & North Africa", Syria: "Middle East & North Africa",
+  Yemen: "Middle East & North Africa", Iraq: "Middle East & North Africa",
+  Iran: "Middle East & North Africa", Israel: "Middle East & North Africa",
+  Lebanon: "Middle East & North Africa", Jordan: "Middle East & North Africa",
+  Egypt: "Middle East & North Africa", Libya: "Middle East & North Africa",
+  Tunisia: "Middle East & North Africa", Algeria: "Middle East & North Africa",
+  Morocco: "Middle East & North Africa", Turkey: "Middle East & North Africa",
+  "Saudi Arabia": "Middle East & North Africa", Kuwait: "Middle East & North Africa",
+  Bahrain: "Middle East & North Africa", Qatar: "Middle East & North Africa",
+  "United Arab Emirates": "Middle East & North Africa", Oman: "Middle East & North Africa",
+  // Sub-Saharan Africa
+  Ethiopia: "Sub-Saharan Africa", Sudan: "Sub-Saharan Africa",
+  "South Sudan": "Sub-Saharan Africa", Somalia: "Sub-Saharan Africa",
+  Nigeria: "Sub-Saharan Africa", Mali: "Sub-Saharan Africa",
+  "Democratic Republic of Congo": "Sub-Saharan Africa",
+  "Republic of Congo": "Sub-Saharan Africa",
+  "Central African Republic": "Sub-Saharan Africa",
+  Cameroon: "Sub-Saharan Africa", Chad: "Sub-Saharan Africa",
+  Niger: "Sub-Saharan Africa", "Burkina Faso": "Sub-Saharan Africa",
+  Ghana: "Sub-Saharan Africa", "Ivory Coast": "Sub-Saharan Africa",
+  Senegal: "Sub-Saharan Africa", Guinea: "Sub-Saharan Africa",
+  "Guinea-Bissau": "Sub-Saharan Africa", "Sierra Leone": "Sub-Saharan Africa",
+  Liberia: "Sub-Saharan Africa", Togo: "Sub-Saharan Africa",
+  Benin: "Sub-Saharan Africa", Gambia: "Sub-Saharan Africa",
+  Mauritania: "Sub-Saharan Africa", Eritrea: "Sub-Saharan Africa",
+  Djibouti: "Sub-Saharan Africa", Kenya: "Sub-Saharan Africa",
+  Uganda: "Sub-Saharan Africa", Rwanda: "Sub-Saharan Africa",
+  Burundi: "Sub-Saharan Africa", Tanzania: "Sub-Saharan Africa",
+  Mozambique: "Sub-Saharan Africa", Malawi: "Sub-Saharan Africa",
+  Zambia: "Sub-Saharan Africa", Zimbabwe: "Sub-Saharan Africa",
+  Botswana: "Sub-Saharan Africa", Namibia: "Sub-Saharan Africa",
+  "South Africa": "Sub-Saharan Africa", Lesotho: "Sub-Saharan Africa",
+  eSwatini: "Sub-Saharan Africa", Madagascar: "Sub-Saharan Africa",
+  Angola: "Sub-Saharan Africa", Gabon: "Sub-Saharan Africa",
+  "Equatorial Guinea": "Sub-Saharan Africa", Comoros: "Sub-Saharan Africa",
+  "Cape Verde": "Sub-Saharan Africa", "Sao Tome and Principe": "Sub-Saharan Africa",
+  Mauritius: "Sub-Saharan Africa", Seychelles: "Sub-Saharan Africa",
+  Mayotte: "Sub-Saharan Africa", Reunion: "Sub-Saharan Africa",
+  // Eastern Europe
+  Ukraine: "Eastern Europe", Moldova: "Eastern Europe",
+  Georgia: "Eastern Europe", Azerbaijan: "Eastern Europe",
+  Russia: "Eastern Europe",
+  // South Asia
+  Afghanistan: "South Asia", Pakistan: "South Asia",
+  India: "South Asia", Nepal: "South Asia",
+  Bangladesh: "South Asia", "Sri Lanka": "South Asia",
+  Bhutan: "South Asia", Maldives: "South Asia",
+  // Southeast Asia
+  Myanmar: "Southeast Asia", Thailand: "Southeast Asia",
+  Cambodia: "Southeast Asia", Laos: "Southeast Asia",
+  Vietnam: "Southeast Asia", Philippines: "Southeast Asia",
+  Indonesia: "Southeast Asia", Malaysia: "Southeast Asia",
+  Singapore: "Southeast Asia", "East Timor": "Southeast Asia",
+  "Papua New Guinea": "Southeast Asia", Fiji: "Southeast Asia",
+  // Central America & Caribbean
+  Haiti: "Central America & Caribbean", Mexico: "Central America & Caribbean",
+  Guatemala: "Central America & Caribbean", Honduras: "Central America & Caribbean",
+  "El Salvador": "Central America & Caribbean", Nicaragua: "Central America & Caribbean",
+  "Costa Rica": "Central America & Caribbean", Panama: "Central America & Caribbean",
+  Cuba: "Central America & Caribbean", Jamaica: "Central America & Caribbean",
+  "Dominican Republic": "Central America & Caribbean", Dominica: "Central America & Caribbean",
+  "Puerto Rico": "Central America & Caribbean", Belize: "Central America & Caribbean",
+  "Trinidad and Tobago": "Central America & Caribbean",
+  Barbados: "Central America & Caribbean", Grenada: "Central America & Caribbean",
+  "Saint Lucia": "Central America & Caribbean",
+  "Saint Vincent and the Grenadines": "Central America & Caribbean",
+  "Saint Kitts and Nevis": "Central America & Caribbean",
+  "Antigua and Barbuda": "Central America & Caribbean",
+  Bahamas: "Central America & Caribbean", Aruba: "Central America & Caribbean",
+  Guadeloupe: "Central America & Caribbean", Martinique: "Central America & Caribbean",
+  // South America
+  Colombia: "South America", Venezuela: "South America",
+  Brazil: "South America", Peru: "South America",
+  Ecuador: "South America", Bolivia: "South America",
+  Chile: "South America", Argentina: "South America",
+  Paraguay: "South America", Uruguay: "South America",
+  Guyana: "South America", Suriname: "South America",
+  "French Guiana": "South America",
+};
+
 interface MapGlobeProps {
   onConflictSelect: (zone: ConflictZone | null) => void;
   selectedConflict: ConflictZone | null;
@@ -92,22 +175,14 @@ export default function MapGlobe({
     });
   }, [conflictZones, filters]);
 
-  // Build country → region lookup from conflict zones
-  const countryToRegion = useMemo(() => {
-    const map = new Map<string, string>();
-    conflictZones.forEach((z) => map.set(z.country, z.region));
-    return map;
-  }, [conflictZones]);
-
   // Filter DB events based on layer filters
   const filteredDbEvents = useMemo(() => {
     if (!filters) return dbEvents;
     return dbEvents.filter((e) => {
       // Region filter
       if (filters.selectedRegion !== "All Regions") {
-        const region = countryToRegion.get(e.country);
-        if (region && region !== filters.selectedRegion) return false;
-        if (!region) return false; // exclude events from unmapped countries
+        const region = COUNTRY_REGION[e.country];
+        if (region !== filters.selectedRegion) return false;
       }
       // Event type filter
       const typeId = EVENT_TYPE_MAP[e.event_type];
@@ -116,7 +191,7 @@ export default function MapGlobe({
       }
       return true;
     });
-  }, [dbEvents, filters, countryToRegion]);
+  }, [dbEvents, filters]);
 
   // Create custom DOM marker for individual (unclustered) points
   const createMarkerEl = useCallback(
