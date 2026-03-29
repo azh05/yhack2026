@@ -127,9 +127,6 @@ export default function Navbar({
             <span className="font-display text-[15px] font-bold tracking-tight text-white">
               Love Over War
             </span>
-            <span className="text-2xs font-mono text-orange-400/70 tracking-wider uppercase">
-              Beta
-            </span>
           </div>
         </a>
 
