@@ -10,6 +10,8 @@ import TimelineBar from "@/components/TimelineBar";
 import ConflictDetail from "@/components/ConflictDetail";
 import { type ConflictZone } from "@/data/conflicts";
 import { useConflictEvents, filterEventsByDate } from "@/lib/useConflictEvents";
+import { useAuth } from "@/lib/useAuth";
+import AuthModal from "@/components/AuthModal";
 import { PanelLeft, Layers, Bot } from "lucide-react";
 
 const MapGlobe = dynamic(() => import("@/components/MapGlobe"), {
@@ -42,6 +44,8 @@ export default function Home() {
   const [conflictZones, setConflictZones] = useState<ConflictZone[]>([]);
   const [zonesLoading, setZonesLoading] = useState(false);
   const { events: dbEvents } = useConflictEvents();
+  const { user, signUp, signIn, signOut } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [flyToTarget, setFlyToTarget] = useState<{
     lat: number;
     lng: number;
@@ -55,6 +59,14 @@ export default function Home() {
     },
     [],
   );
+
+  const handleAuth = useCallback(async (email: string, password: string, isSignUp: boolean, name?: string) => {
+    if (isSignUp) {
+      await signUp(email, password, name);
+    } else {
+      await signIn(email, password);
+    }
+  }, [signUp, signIn]);
 
   const fetchZones = useCallback(async () => {
     setZonesLoading(true);
@@ -109,7 +121,23 @@ export default function Home() {
 
   return (
     <main className="h-screen w-screen overflow-hidden bg-surface relative">
-      <Navbar conflictZones={conflictZones} isLoading={zonesLoading} />
+      <Navbar
+        conflictZones={conflictZones}
+        isLoading={zonesLoading}
+        user={user}
+        onSignInClick={() => setAuthModalOpen(true)}
+        onSignOut={signOut}
+        onConflictSelect={(zone) => {
+          handleConflictSelect(zone);
+          setFlyToTarget({ lat: zone.latitude, lng: zone.longitude });
+        }}
+      />
+
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onAuth={handleAuth}
+      />
 
       <MapGlobe
         onConflictSelect={handleConflictSelect}
