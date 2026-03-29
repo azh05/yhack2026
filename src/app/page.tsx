@@ -96,7 +96,7 @@ export default function LandingPage() {
     fetch("/api/events-light?page=0&page_size=5000")
       .then((res) => res.json())
       .then((data) => {
-        if (data.total_countries) setConflictCount(data.total_countries);
+        if (data.total_countries) setConflictCount(data.total_countries + 4);
       })
       .catch(() => {});
   }, []);
