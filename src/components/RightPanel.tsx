@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   Layers,
@@ -77,7 +77,9 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-accent-glow/70" />
-          <h2 className="text-sm font-display font-semibold text-white">Layers & Filters</h2>
+          <h2 className="text-sm font-display font-semibold text-white">
+            Layers & Filters
+          </h2>
         </div>
         <button
           onClick={onToggle}
@@ -121,8 +123,8 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
                   onClick={() => toggleType(type.id)}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200 ${
                     isActive
-                      ? 'bg-surface-300/40 text-white/90'
-                      : 'text-muted/50 hover:text-muted-light hover:bg-surface-300/20'
+                      ? "bg-surface-300/40 text-white/90"
+                      : "text-muted/50 hover:text-muted-light hover:bg-surface-300/20"
                   }`}
                 >
                   <div
@@ -130,10 +132,13 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
                     style={{
                       backgroundColor: type.color,
                       opacity: isActive ? 1 : 0.3,
-                      boxShadow: isActive ? `0 0 6px ${type.color}50` : 'none',
+                      boxShadow: isActive ? `0 0 6px ${type.color}50` : "none",
                     }}
                   />
-                  <span className="flex items-center gap-1.5" style={{ color: isActive ? type.color + 'cc' : undefined }}>
+                  <span
+                    className="flex items-center gap-1.5"
+                    style={{ color: isActive ? type.color + "cc" : undefined }}
+                  >
                     {LAYER_ICONS[type.id]}
                     {type.label}
                   </span>
@@ -158,7 +163,8 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
           <div className="px-1">
             <div className="h-2 rounded-full overflow-hidden mb-3"
               style={{
-                background: 'linear-gradient(to right, #facc15, #f97316, #ef4444, #991b1b, #7f1d1d)',
+                background:
+                  "linear-gradient(to right, #facc15, #f97316, #ef4444, #991b1b, #7f1d1d)",
               }}
             />
             <div className="flex items-center gap-3">

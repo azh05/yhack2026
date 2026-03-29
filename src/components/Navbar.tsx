@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
 import {
@@ -12,13 +12,16 @@ import {
   Moon,
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { ConflictZone } from '@/data/conflicts';
 
 interface NavbarProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  conflictZones: ConflictZone[];
+  isLoading?: boolean;
 }
 
-export default function Navbar({ searchQuery = '', onSearchChange }: NavbarProps) {
+export default function Navbar({ searchQuery = '', onSearchChange, conflictZones, isLoading }: NavbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const { theme, toggle } = useTheme();
 
@@ -32,6 +35,12 @@ export default function Navbar({ searchQuery = '', onSearchChange }: NavbarProps
     const id = setInterval(update, 60_000);
     return () => clearInterval(id);
   }, []);
+
+  const activeConflicts = conflictZones.length;
+  const escalatingCount = conflictZones.filter(
+    (z) => z.trend === "escalating",
+  ).length;
+  const countriesCount = new Set(conflictZones.map((z) => z.country)).size;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 glass border-b border-white/[0.04]">
@@ -76,15 +85,24 @@ export default function Navbar({ searchQuery = '', onSearchChange }: NavbarProps
 
           <div className="flex items-center gap-4 text-2xs font-mono text-muted-light/50">
             <span>
-              <span className="text-white/80 font-medium tabular-nums">46</span> active
+              <span className="text-white/80 font-medium tabular-nums">
+                {isLoading ? "..." : activeConflicts}
+              </span>{" "}
+              active
             </span>
             <span className="text-white/[0.07]">|</span>
             <span>
-              <span className="text-severity-high/80 font-medium tabular-nums">16</span> escalating
+              <span className="text-severity-high/80 font-medium tabular-nums">
+                {isLoading ? "..." : escalatingCount}
+              </span>{" "}
+              escalating
             </span>
             <span className="text-white/[0.07]">|</span>
             <span>
-              <span className="text-white/80 font-medium tabular-nums">76</span> countries
+              <span className="text-white/80 font-medium tabular-nums">
+                {isLoading ? "..." : countriesCount}
+              </span>{" "}
+              countries
             </span>
           </div>
         </div>

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
@@ -6,8 +6,10 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { CONFLICT_ZONES, getSeverityColor, type ConflictZone } from '@/data/conflicts';
 import { getConflictsAtDate } from '@/data/timeline';
 import type { MapFilters } from '@/data/filters';
+import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from '@/lib/useConflictEvents';
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'YOUR_MAPBOX_TOKEN_HERE';
+mapboxgl.accessToken =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
 
 interface MapGlobeProps {
   onConflictSelect: (zone: ConflictZone | null) => void;
@@ -15,6 +17,9 @@ interface MapGlobeProps {
   timelineDate: Date;
   filters: MapFilters;
   rightPanelOpen?: boolean;
+  conflictZones: ConflictZone[];
+  dbEvents?: DBEvent[];
+  flyToTarget?: { lat: number; lng: number } | null;
 }
 
 function buildGeoJSON(zones: ConflictZone[]) {
@@ -35,7 +40,7 @@ function buildGeoJSON(zones: ConflictZone[]) {
         eventType: zone.eventType,
       },
       geometry: {
-        type: 'Point' as const,
+        type: "Point" as const,
         coordinates: [zone.longitude, zone.latitude],
       },
     })),
@@ -46,7 +51,16 @@ function matchesEventType(zone: ConflictZone, activeTypes: Set<string>): boolean
   return activeTypes.has(zone.eventType);
 }
 
-export default function MapGlobe({ onConflictSelect, selectedConflict, timelineDate, filters, rightPanelOpen = false }: MapGlobeProps) {
+export default function MapGlobe({
+  onConflictSelect,
+  selectedConflict,
+  timelineDate,
+  filters,
+  rightPanelOpen = false,
+  conflictZones,
+  dbEvents = [],
+  flyToTarget,
+}: MapGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
@@ -63,26 +77,23 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
     map.current?.easeTo({ bearing: 0, pitch: 0, duration: 500 });
   }, []);
 
-  // Compute time-adjusted + filtered zones
+  // Use backend conflictZones if available, otherwise fall back to local data with filters
   const visibleZones = useMemo(() => {
-    const timeZones = getConflictsAtDate(timelineDate);
-    return timeZones.filter(zone => {
-      // Region filter
+    const zones = conflictZones.length > 0 ? conflictZones : getConflictsAtDate(timelineDate);
+    return zones.filter(zone => {
       if (filters.selectedRegion !== 'All Regions' && zone.region !== filters.selectedRegion) return false;
-      // Severity filter
       if (zone.severity < filters.severityRange[0] || zone.severity > filters.severityRange[1]) return false;
-      // Event type filter
       if (!matchesEventType(zone, filters.activeTypes)) return false;
       return true;
     });
-  }, [timelineDate, filters]);
+  }, [timelineDate, filters, conflictZones]);
 
   const createMarkerEl = useCallback((zone: ConflictZone) => {
     const el = document.createElement('div');
     const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
     const color = getSeverityColor(zone.severity);
 
-    el.innerHTML = `
+      el.innerHTML = `
       <div style="position:relative; width:${size}px; height:${size}px; cursor:pointer;" class="conflict-marker-group">
         <div style="
           position:absolute; inset:-6px; border-radius:50%;
@@ -100,28 +111,34 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
           border: 1.5px solid ${color}bb;
           box-shadow: 0 0 ${size * 0.5}px ${color}50;
         "></div>
-        ${zone.severity >= 6 ? `
+        ${
+          zone.severity >= 6
+            ? `
           <div style="
             position:absolute; top:${size + 6}px; left:50%; transform:translateX(-50%);
             white-space:nowrap; font-size:9px; font-family:'JetBrains Mono',monospace;
             color:${color}dd; text-shadow: 0 1px 4px rgba(0,0,0,0.9);
             letter-spacing:0.05em; font-weight:500;
           ">${zone.fatalities30d.toLocaleString()}</div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
     `;
 
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      onConflictSelect(zone);
-    });
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onConflictSelect(zone);
+      });
 
     el.addEventListener('mouseenter', () => {
       el.title = `${zone.name} — Severity ${zone.severity.toFixed(1)}`;
     });
 
-    return el;
-  }, [onConflictSelect]);
+      return el;
+    },
+    [onConflictSelect],
+  );
 
   // Initialize map
   useEffect(() => {
@@ -129,10 +146,10 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
 
     const m = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: "mapbox://styles/mapbox/dark-v11",
       center: [30, 15],
       zoom: 2.2,
-      projection: 'globe',
+      projection: "globe",
       antialias: true,
       fadeDuration: 0,
       maxPitch: 85,
@@ -141,15 +158,15 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
 
     m.on('style.load', () => {
       m.setFog({
-        color: 'rgb(8, 12, 22)',
-        'high-color': 'rgb(18, 24, 44)',
-        'horizon-blend': 0.06,
-        'space-color': 'rgb(4, 6, 12)',
-        'star-intensity': 0.5,
+        color: "rgb(8, 12, 22)",
+        "high-color": "rgb(18, 24, 44)",
+        "horizon-blend": 0.06,
+        "space-color": "rgb(4, 6, 12)",
+        "star-intensity": 0.5,
       });
     });
 
-    m.on('load', () => {
+    m.on("load", () => {
       setMapLoaded(true);
 
       m.addSource('mapbox-dem', {
@@ -158,14 +175,16 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         tileSize: 512,
         maxzoom: 14,
       });
-      m.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
+      m.setTerrain({ source: "mapbox-dem", exaggeration: 1.2 });
 
       if (m.getLayer('water')) {
         m.setPaintProperty('water', 'fill-color', '#060a12');
       }
-      ['land', 'landcover', 'landuse'].forEach(layer => {
+      ["land", "landcover", "landuse"].forEach((layer) => {
         if (m.getLayer(layer)) {
-          try { m.setPaintProperty(layer, 'fill-color', '#0c1018'); } catch {}
+          try {
+            m.setPaintProperty(layer, "fill-color", "#0c1018");
+          } catch {}
         }
       });
 
@@ -174,13 +193,17 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         m.setPaintProperty('admin-0-boundary', 'line-opacity', 0.6);
         m.setPaintProperty('admin-0-boundary', 'line-width', 1);
       }
-      if (m.getLayer('admin-0-boundary-disputed')) {
-        m.setPaintProperty('admin-0-boundary-disputed', 'line-color', '#2a4a6f');
-        m.setPaintProperty('admin-0-boundary-disputed', 'line-opacity', 0.4);
+      if (m.getLayer("admin-0-boundary-disputed")) {
+        m.setPaintProperty(
+          "admin-0-boundary-disputed",
+          "line-color",
+          "#2a4a6f",
+        );
+        m.setPaintProperty("admin-0-boundary-disputed", "line-opacity", 0.4);
       }
-      if (m.getLayer('admin-1-boundary')) {
-        m.setPaintProperty('admin-1-boundary', 'line-color', '#1e3650');
-        m.setPaintProperty('admin-1-boundary', 'line-opacity', 0.3);
+      if (m.getLayer("admin-1-boundary")) {
+        m.setPaintProperty("admin-1-boundary", "line-color", "#1e3650");
+        m.setPaintProperty("admin-1-boundary", "line-opacity", 0.3);
       }
 
       m.getStyle().layers.forEach(layer => {
@@ -213,13 +236,13 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       // === HEATMAP LAYER ===
       m.addSource('conflict-heat', {
         type: 'geojson',
-        data: buildGeoJSON(CONFLICT_ZONES),
+        data: buildGeoJSON(visibleZones),
       });
 
       m.addLayer({
-        id: 'conflict-heatmap',
-        type: 'heatmap',
-        source: 'conflict-heat',
+        id: "conflict-heatmap",
+        type: "heatmap",
+        source: "conflict-heat",
         maxzoom: 8,
         paint: {
           'heatmap-weight': [
@@ -230,15 +253,24 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
             'interpolate', ['linear'], ['zoom'],
             0, 0.6, 4, 1, 8, 1.5,
           ],
-          'heatmap-color': [
-            'interpolate', ['linear'], ['heatmap-density'],
-            0, 'rgba(0,0,0,0)',
-            0.1, 'rgba(250,204,21,0.08)',
-            0.3, 'rgba(249,115,22,0.15)',
-            0.5, 'rgba(239,68,68,0.25)',
-            0.7, 'rgba(220,38,38,0.35)',
-            0.9, 'rgba(153,27,27,0.45)',
-            1, 'rgba(127,29,29,0.55)',
+          "heatmap-color": [
+            "interpolate",
+            ["linear"],
+            ["heatmap-density"],
+            0,
+            "rgba(0,0,0,0)",
+            0.1,
+            "rgba(250,204,21,0.08)",
+            0.3,
+            "rgba(249,115,22,0.15)",
+            0.5,
+            "rgba(239,68,68,0.25)",
+            0.7,
+            "rgba(220,38,38,0.35)",
+            0.9,
+            "rgba(153,27,27,0.45)",
+            1,
+            "rgba(127,29,29,0.55)",
           ],
           'heatmap-radius': [
             'interpolate', ['linear'], ['zoom'],
@@ -251,25 +283,139 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         },
       });
 
-      // === CLUSTERED SOURCE ===
-      m.addSource('conflicts-clustered', {
-        type: 'geojson',
-        data: buildGeoJSON(CONFLICT_ZONES),
+      // === DB EVENTS (timeline-filtered, GPU-rendered) ===
+      m.addSource("db-events-heat", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      m.addLayer({
+        id: "db-events-heatmap",
+        type: "heatmap",
+        source: "db-events-heat",
+        maxzoom: 8,
+        paint: {
+          "heatmap-weight": ["interpolate", ["linear"], ["get", "severity"], 1, 0.1, 5, 0.4, 8, 0.7, 10, 1],
+          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.8, 4, 1.2, 8, 1.8],
+          "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(0,0,0,0)", 0.1, "rgba(250,204,21,0.1)", 0.3, "rgba(249,115,22,0.2)", 0.5, "rgba(239,68,68,0.3)", 0.7, "rgba(220,38,38,0.4)", 0.9, "rgba(153,27,27,0.5)", 1, "rgba(127,29,29,0.6)"],
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 25, 3, 45, 6, 65, 9, 85],
+          "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.7, 6, 0.5, 9, 0.2],
+        },
+      });
+
+      m.addSource("db-events-circles", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
         cluster: true,
-        clusterMaxZoom: 5,
-        clusterRadius: 80,
+        clusterMaxZoom: 8,
+        clusterRadius: 50,
         clusterProperties: {
-          maxSeverity: ['max', ['get', 'severity']],
-          totalFatalities: ['+', ['get', 'fatalities30d']],
-          totalEvents: ['+', ['get', 'eventCount']],
+          maxSeverity: ["max", ["get", "severity"]],
+          totalFatalities: ["+", ["get", "fatalities30d"]],
         },
       });
 
       m.addLayer({
-        id: 'cluster-glow',
-        type: 'circle',
-        source: 'conflicts-clustered',
-        filter: ['has', 'point_count'],
+        id: "db-clusters",
+        type: "circle",
+        source: "db-events-circles",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": ["interpolate", ["linear"], ["get", "maxSeverity"], 3, "#facc15", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
+          "circle-radius": ["step", ["get", "point_count"], 14, 5, 20, 20, 28, 50, 36],
+          "circle-opacity": 0.7,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "rgba(255,255,255,0.15)",
+        },
+      });
+
+      m.addLayer({
+        id: "db-cluster-count",
+        type: "symbol",
+        source: "db-events-circles",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": "{point_count_abbreviated}",
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": 11,
+          "text-allow-overlap": true,
+        },
+        paint: { "text-color": "#ffffff", "text-halo-color": "rgba(0,0,0,0.5)", "text-halo-width": 1 },
+      });
+
+      m.addLayer({
+        id: "db-events-glow",
+        type: "circle",
+        source: "db-events-circles",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 10, 5, 16, 8, 22, 10, 30],
+          "circle-opacity": 0.15,
+          "circle-blur": 1,
+        },
+      });
+
+      m.addLayer({
+        id: "db-events-points",
+        type: "circle",
+        source: "db-events-circles",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 3, "#f59e0b", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 5, 5, 8, 8, 11, 10, 15],
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "rgba(255,255,255,0.25)",
+        },
+      });
+
+      const dbPopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
+      m.on("mouseenter", "db-events-points", (e) => {
+        m.getCanvas().style.cursor = "pointer";
+        if (e.features && e.features[0]) {
+          const props = e.features[0].properties!;
+          const coords = (e.features[0].geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+          dbPopup.setLngLat(coords).setHTML(
+            `<div style="font-size:11px;color:#e5e5e5;max-width:200px;"><strong>${props.name}</strong><br/><span style="color:#999;">${props.event_date}</span><br/>Fatalities: ${props.fatalities30d} · Severity: ${(props.severity as number).toFixed(1)}</div>`
+          ).addTo(m);
+        }
+      });
+      m.on("mouseleave", "db-events-points", () => { m.getCanvas().style.cursor = ""; dbPopup.remove(); });
+
+      m.on("click", "db-clusters", (e) => {
+        const features = m.queryRenderedFeatures(e.point, { layers: ["db-clusters"] });
+        if (!features.length) return;
+        const clusterId = features[0].properties?.cluster_id;
+        const source = m.getSource("db-events-circles") as mapboxgl.GeoJSONSource;
+        source.getClusterExpansionZoom(clusterId, ((err: any, zoom: any) => {
+          if (err || zoom == null) return;
+          const coords = (features[0].geometry as GeoJSON.Point).coordinates;
+          m.easeTo({ center: coords as [number, number], zoom: zoom + 0.5, duration: 800 });
+        }) as any);
+      });
+      m.on("mouseenter", "db-clusters", () => { m.getCanvas().style.cursor = "pointer"; });
+      m.on("mouseleave", "db-clusters", () => { m.getCanvas().style.cursor = ""; });
+
+      // === CLUSTERED SOURCE ===
+      m.addSource('conflicts-clustered', {
+        type: 'geojson',
+        data: buildGeoJSON(visibleZones),
+        cluster: true,
+        clusterMaxZoom: 5,
+        clusterRadius: 80,
+        clusterProperties: {
+          maxSeverity: ["max", ["get", "severity"]],
+          totalFatalities: ["+", ["get", "fatalities30d"]],
+          totalEvents: ["+", ["get", "eventCount"]],
+        },
+      });
+
+      m.addLayer({
+        id: "cluster-glow",
+        type: "circle",
+        source: "conflicts-clustered",
+        filter: ["has", "point_count"],
         paint: {
           'circle-color': [
             'interpolate', ['linear'], ['get', 'maxSeverity'],
@@ -282,10 +428,10 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       });
 
       m.addLayer({
-        id: 'clusters',
-        type: 'circle',
-        source: 'conflicts-clustered',
-        filter: ['has', 'point_count'],
+        id: "clusters",
+        type: "circle",
+        source: "conflicts-clustered",
+        filter: ["has", "point_count"],
         paint: {
           'circle-color': [
             'interpolate', ['linear'], ['get', 'maxSeverity'],
@@ -299,20 +445,20 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       });
 
       m.addLayer({
-        id: 'cluster-count',
-        type: 'symbol',
-        source: 'conflicts-clustered',
-        filter: ['has', 'point_count'],
+        id: "cluster-count",
+        type: "symbol",
+        source: "conflicts-clustered",
+        filter: ["has", "point_count"],
         layout: {
-          'text-field': '{point_count_abbreviated}',
-          'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-          'text-size': 13,
-          'text-allow-overlap': true,
+          "text-field": "{point_count_abbreviated}",
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": 13,
+          "text-allow-overlap": true,
         },
         paint: {
-          'text-color': '#ffffff',
-          'text-halo-color': 'rgba(0,0,0,0.5)',
-          'text-halo-width': 1,
+          "text-color": "#ffffff",
+          "text-halo-color": "rgba(0,0,0,0.5)",
+          "text-halo-width": 1,
         },
       });
 
@@ -340,7 +486,9 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         if (!features.length) return;
         const clusterId = features[0].properties?.cluster_id;
-        const source = m.getSource('conflicts-clustered') as mapboxgl.GeoJSONSource;
+        const source = m.getSource(
+          "conflicts-clustered",
+        ) as mapboxgl.GeoJSONSource;
         source.getClusterExpansionZoom(clusterId, ((err: any, zoom: any) => {
           if (err || zoom == null) return;
           const coords = (features[0].geometry as GeoJSON.Point).coordinates;
@@ -360,26 +508,25 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         markersRef.current.forEach((marker) => {
           const el = marker.getElement();
           if (zoom < 3) {
-            el.style.opacity = '0';
-            el.style.pointerEvents = 'none';
+            el.style.opacity = "0";
+            el.style.pointerEvents = "none";
           } else if (zoom < 4.5) {
-            el.style.opacity = '0.6';
-            el.style.pointerEvents = 'auto';
+            el.style.opacity = "0.6";
+            el.style.pointerEvents = "auto";
           } else {
-            el.style.opacity = '1';
-            el.style.pointerEvents = 'auto';
+            el.style.opacity = "1";
+            el.style.pointerEvents = "auto";
           }
         });
       });
     });
 
     // Custom zoom controls rendered via React instead of Mapbox's NavigationControl
-    // to avoid Mapbox's aggressive style overrides that prevent repositioning
 
     map.current = m;
 
     return () => {
-      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current.forEach((marker) => marker.remove());
       m.remove();
       map.current = null;
     };
@@ -415,25 +562,21 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
     visibleZones.forEach(zone => {
       const existing = markersRef.current.get(zone.id);
       if (existing) {
-        // Update position (doesn't change, but update the marker element for severity changes)
         const el = existing.getElement();
         const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
         const color = getSeverityColor(zone.severity);
-        // Update the core circle color
         const core = el.querySelector('.conflict-marker-group > div:nth-child(3)') as HTMLElement;
         if (core) {
           core.style.background = `radial-gradient(circle at 35% 35%, ${color}ee, ${color}88)`;
           core.style.borderColor = `${color}bb`;
           core.style.boxShadow = `0 0 ${size * 0.5}px ${color}50`;
         }
-        // Update aura
         const aura = el.querySelector('.conflict-marker-group > div:nth-child(2)') as HTMLElement;
         if (aura) {
           aura.style.background = `${color}25`;
           aura.style.boxShadow = `0 0 ${size}px ${color}35`;
         }
       } else {
-        // Create new marker
         const el = createMarkerEl(zone);
         const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([zone.longitude, zone.latitude])
@@ -460,7 +603,7 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       }
     });
 
-    // Conflict borders overlay — soft radial zones around each conflict point
+    // Conflict borders overlay
     if (m.getLayer('conflict-borders')) {
       m.setPaintProperty('conflict-borders', 'circle-opacity', filters.overlays.borders ? 0.6 : 0);
     }
@@ -479,8 +622,34 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
     });
   }, [selectedConflict]);
 
+  // Update DB events on timeline change
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const m = map.current;
+    const filtered = filterEventsByDate(dbEvents, timelineDate);
+    const geojson = buildGeoJSONFromEvents(filtered);
+
+    const heatSource = m.getSource("db-events-heat") as mapboxgl.GeoJSONSource;
+    if (heatSource) heatSource.setData(geojson);
+
+    const circleSource = m.getSource("db-events-circles") as mapboxgl.GeoJSONSource;
+    if (circleSource) circleSource.setData(geojson);
+  }, [dbEvents, timelineDate, mapLoaded]);
+
+  // Fly to chat target
+  useEffect(() => {
+    if (!map.current || !flyToTarget) return;
+    map.current.flyTo({
+      center: [flyToTarget.lng, flyToTarget.lat],
+      zoom: 5,
+      pitch: 40,
+      duration: 2000,
+      essential: true,
+    });
+  }, [flyToTarget]);
+
   return (
-    <div className="absolute inset-0" style={{ top: '56px' }}>
+    <div className="absolute inset-0" style={{ top: "56px" }}>
       <div ref={mapContainer} className="w-full h-full" />
 
       {!mapLoaded && (

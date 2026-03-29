@@ -1,9 +1,7 @@
-'use client';
+"use client";
 
 import { useState, useMemo } from 'react';
 import {
-  MessageSquare,
-  Send,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -11,8 +9,10 @@ import {
   Skull,
   MapPin,
   ChevronRight,
-  Sparkles,
   X,
+  Sparkles,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
 import {
   getSeverityColor,
@@ -29,29 +29,36 @@ interface LeftPanelProps {
   timelineDate: Date;
   filters: MapFilters;
   searchQuery?: string;
+  conflictZones: ConflictZone[];
+  isLoading?: boolean;
 }
 
 function TrendIcon({ trend }: { trend: string }) {
-  if (trend === 'escalating') return <TrendingUp className="w-3 h-3 text-severity-high" />;
-  if (trend === 'de-escalating') return <TrendingDown className="w-3 h-3 text-emerald-400" />;
+  if (trend === "escalating")
+    return <TrendingUp className="w-3 h-3 text-severity-high" />;
+  if (trend === "de-escalating")
+    return <TrendingDown className="w-3 h-3 text-emerald-400" />;
   return <Minus className="w-3 h-3 text-muted" />;
 }
 
 function TrendBadge({ trend }: { trend: string }) {
   const colors = {
-    escalating: 'text-severity-high bg-severity-high/10 border-severity-high/20',
-    stable: 'text-muted-light bg-surface-300/50 border-white/[0.06]',
-    'de-escalating': 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+    escalating:
+      "text-severity-high bg-severity-high/10 border-severity-high/20",
+    stable: "text-muted-light bg-surface-300/50 border-white/[0.06]",
+    "de-escalating": "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-mono border ${colors[trend as keyof typeof colors]}`}>
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-mono border ${colors[trend as keyof typeof colors]}`}
+    >
       <TrendIcon trend={trend} />
       {trend}
     </span>
   );
 }
 
-export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict, timelineDate, filters, searchQuery = '' }: LeftPanelProps) {
+export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict, timelineDate, filters, searchQuery = '', conflictZones, isLoading = false }: LeftPanelProps) {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<{ role: string; text: string }[]>([
     {
@@ -60,9 +67,9 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
     },
   ]);
 
-  // Get time-adjusted zones and apply filters + search
+  // Use backend conflictZones if available, otherwise fall back to local data
   const sortedZones = useMemo(() => {
-    const zones = getConflictsAtDate(timelineDate);
+    const zones = conflictZones.length > 0 ? conflictZones : getConflictsAtDate(timelineDate);
     const q = searchQuery.toLowerCase().trim();
     return zones
       .filter(zone => {
@@ -75,7 +82,7 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
         return true;
       })
       .sort((a, b) => b.severity - a.severity);
-  }, [timelineDate, filters, searchQuery]);
+  }, [timelineDate, filters, searchQuery, conflictZones]);
 
   const handleChatSend = () => {
     if (!chatInput.trim()) return;
@@ -97,7 +104,9 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-severity-moderate" />
-          <h2 className="text-sm font-display font-semibold text-white">Active Conflicts</h2>
+          <h2 className="text-sm font-display font-semibold text-white">
+            Active Conflicts
+          </h2>
           <span className="px-1.5 py-0.5 rounded bg-severity-high/10 text-severity-high text-2xs font-mono">
             {sortedZones.length}
           </span>
@@ -112,9 +121,16 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-2 space-y-1">
-          {sortedZones.map((zone) => {
-            const isSelected = selectedConflict?.id === zone.id;
-            const color = getSeverityColor(zone.severity);
+          {isLoading ? (
+            <>
+              <div className="animate-pulse bg-surface-300/30 rounded-lg h-12" />
+              <div className="animate-pulse bg-surface-300/30 rounded-lg h-12" />
+              <div className="animate-pulse bg-surface-300/30 rounded-lg h-12" />
+            </>
+          ) : (
+            sortedZones.map((zone) => {
+              const isSelected = selectedConflict?.id === zone.id;
+              const color = getSeverityColor(zone.severity);
 
             return (
               <button
@@ -182,8 +198,9 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
                 </div>
               </button>
             );
-          })}
-          {sortedZones.length === 0 && (
+          })
+          )}
+          {!isLoading && sortedZones.length === 0 && (
             <div className="text-center py-8 text-muted/40 text-xs">
               No conflicts match current filters
             </div>
