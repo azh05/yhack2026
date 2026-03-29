@@ -56,6 +56,7 @@ interface NGO {
   focus: string;
   url: string;
   reason: string;
+  scope: "international" | "local";
 }
 
 const FALLBACK_NGOS: NGO[] = [
@@ -65,6 +66,7 @@ const FALLBACK_NGOS: NGO[] = [
     url: "https://www.icrc.org",
     reason:
       "Provides protection and assistance to people affected by armed conflict.",
+    scope: "international",
   },
   {
     name: "Doctors Without Borders",
@@ -72,6 +74,7 @@ const FALLBACK_NGOS: NGO[] = [
     url: "https://www.msf.org",
     reason:
       "Delivers emergency medical care in conflict zones with high civilian casualties.",
+    scope: "international",
   },
   {
     name: "UNHCR",
@@ -79,6 +82,7 @@ const FALLBACK_NGOS: NGO[] = [
     url: "https://www.unhcr.org",
     reason:
       "Supports refugees and internally displaced populations fleeing armed conflict.",
+    scope: "international",
   },
 ];
 
@@ -160,11 +164,15 @@ export async function GET(req: NextRequest) {
         "No recent event data available. Use your general knowledge about this country's conflict situation.\n";
     }
 
-    const prompt = `You are an expert geopolitical data analyst and humanitarian coordinator. Given the conflict zone "${country}" and the conflict data below, select 2 to 3 NGOs that are the best match for the specific humanitarian needs in this crisis.
+    const prompt = `You are an expert geopolitical data analyst and humanitarian coordinator. Given the conflict zone "${country}" and the conflict data below, select 3 to 4 organizations providing humanitarian relief in this specific crisis.
 
-You MUST select from the reference pool below. Choose ONLY organizations whose specialization directly addresses what the conflict data describes. Do not pick generalist organizations unless the data specifically warrants it.
+You MUST return a mix:
+- 1 to 2 INTERNATIONAL organizations (large, well-known NGOs with global operations)
+- 1 to 2 LOCAL or REGIONAL organizations (smaller orgs founded in or headquartered in ${country} or its immediate region, with direct community ties on the ground)
 
-Reference pool by specialization:
+For international orgs, use the reference pool below. For local/regional orgs, draw on your knowledge of civil society organizations, local NGOs, community groups, and regional aid bodies operating specifically in ${country}. These should be real, verifiable organizations with a web presence.
+
+International reference pool by specialization:
 - Medical/surgical trauma: Doctors Without Borders (msf.org), International Medical Corps (internationalmedicalcorps.org), Emergency (emergency.it)
 - Refugee camps and displacement: UNHCR (unhcr.org), International Rescue Committee (rescue.org), Norwegian Refugee Council (nrc.no)
 - Food insecurity and famine: World Food Programme (wfp.org), World Central Kitchen (wck.org), Action Against Hunger (actionagainsthunger.org)
@@ -181,6 +189,7 @@ Selection rules:
 3. Do NOT pick more than one organization from the same specialization category.
 4. If the conflict involves bombings or shelling with civilian casualties, prioritize surgical/trauma medical organizations over general ones.
 5. If the conflict data mentions displacement or refugees, include a displacement-focused organization.
+6. For the local/regional picks, choose organizations that are actually based in or near ${country} — not international orgs that happen to operate there. Examples of what qualifies: a national Red Crescent society, a local women's aid group, a regional medical network, a diaspora-led relief fund, a community-based protection group.
 
 Conflict data for ${country}:
 ${contextSection}
@@ -193,7 +202,8 @@ Use this EXACT format:
     "name": "Organization Name",
     "focus": "3-word specialization label",
     "url": "https://www.example.org",
-    "reason": "One sentence explaining why this org is relevant to the data above"
+    "reason": "One sentence explaining why this org is relevant to the data above",
+    "scope": "international or local"
   }
 ]
 </ngos>`;
@@ -220,7 +230,8 @@ Use this EXACT format:
               typeof (item as Record<string, unknown>).name === "string" &&
               typeof (item as Record<string, unknown>).focus === "string" &&
               typeof (item as Record<string, unknown>).url === "string" &&
-              typeof (item as Record<string, unknown>).reason === "string",
+              typeof (item as Record<string, unknown>).reason === "string" &&
+              typeof (item as Record<string, unknown>).scope === "string",
           )
         ) {
           console.error("[ngos] AI response JSON failed validation");

@@ -530,6 +530,17 @@ export default function ConflictDetail({
                       <span className="text-2xs font-mono font-medium text-accent-glow/60">
                         {ngo.focus}
                       </span>
+                      {ngo.scope && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-2xs font-mono border ${
+                            ngo.scope === "local"
+                              ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"
+                              : "text-muted-light/60 bg-surface-300/50 border-white/[0.06]"
+                          }`}
+                        >
+                          {ngo.scope === "local" ? "Local" : "Intl"}
+                        </span>
+                      )}
                     </div>
                     {ngo.reason && (
                       <p className="text-2xs text-muted/50 leading-relaxed mt-1">

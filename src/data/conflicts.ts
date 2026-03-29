@@ -27,6 +27,7 @@ export interface NGO {
   focus: string;
   url: string;
   reason: string;
+  scope: "international" | "local";
 }
 
 export interface AIAnalysis {
