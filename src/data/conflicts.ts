@@ -22,6 +22,13 @@ export interface NewsSource {
   url: string;
 }
 
+export interface NGO {
+  name: string;
+  focus: string;
+  url: string;
+  reason: string;
+}
+
 export interface AIAnalysis {
   background: string;
   currentSituation: string;

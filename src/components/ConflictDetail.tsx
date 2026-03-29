@@ -18,6 +18,7 @@ import {
   BookmarkPlus,
   AlertTriangle,
   Heart,
+  HandHeart,
   Eye,
   ChevronDown,
   ChevronUp,
@@ -32,6 +33,7 @@ import {
   type ConflictZone,
   type NewsSource,
   type AIAnalysis,
+  type NGO,
 } from "@/data/conflicts";
 
 interface ConflictDetailProps {
@@ -130,12 +132,15 @@ export default function ConflictDetail({
   const [newsLoading, setNewsLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis>(zone.aiAnalysis);
   const [aiLoading, setAiLoading] = useState(false);
+  const [ngos, setNgos] = useState<NGO[]>([]);
+  const [ngosLoading, setNgosLoading] = useState(false);
 
-  // Track which zone id we've already fetched AI/news for so we don't
+  // Track which zone id we've already fetched AI/news/ngos for so we don't
   // re-fetch on every timeline tick (zone object is replaced but id stays).
   const fetchedAiForRef = useRef<string | null>(null);
   const fetchedNewsForRef = useRef<string | null>(null);
   const fetchedNewsDateRef = useRef<string | null>(null);
+  const fetchedNgosForRef = useRef<string | null>(null);
 
   useEffect(() => {
     // If the zone already ships with a cached analysis, use it directly.
@@ -175,6 +180,42 @@ export default function ConflictDetail({
       cancelled = true;
     };
   }, [zone.id, zone.country, zone.aiAnalysis.background]);
+
+  useEffect(() => {
+    // Wait for the AI briefing to finish so we have humanitarian context
+    if (aiLoading) return;
+    if (fetchedNgosForRef.current === zone.country) return;
+
+    let cancelled = false;
+    setNgosLoading(true);
+    const params = new URLSearchParams({ country: zone.country });
+    if (zone.primaryType) params.set("eventType", zone.primaryType);
+    if (zone.fatalities30d)
+      params.set("fatalities", String(zone.fatalities30d));
+    if (zone.severity) params.set("severity", String(zone.severity));
+    if (aiAnalysis.humanitarianImpact)
+      params.set("humanitarianImpact", aiAnalysis.humanitarianImpact);
+    fetch(`/api/ngos?${params.toString()}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`NGOs API returned ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setNgos(data.ngos ?? []);
+        fetchedNgosForRef.current = zone.country;
+      })
+      .catch((err) => {
+        console.error("[fetchNgos]", err);
+        if (!cancelled) setNgos([]);
+      })
+      .finally(() => {
+        if (!cancelled) setNgosLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [zone.id, zone.country, aiLoading]);
 
   useEffect(() => {
     // If the zone already ships with cached news, use it directly.
@@ -450,6 +491,56 @@ export default function ConflictDetail({
             <p className="text-[13px] leading-relaxed text-white/70 font-body">
               {aiAnalysis.outlook}
             </p>
+          )}
+        </AnalysisSection>
+
+        {/* Verified Aid Organizations */}
+        <AnalysisSection
+          icon={<HandHeart className="w-3.5 h-3.5 text-severity-high/50" />}
+          title="Take Action — Verified Aid"
+          defaultOpen={true}
+        >
+          {ngosLoading ? (
+            <div className="flex items-center gap-2 py-2 text-muted/50">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span className="text-2xs font-mono">Finding organizations…</span>
+            </div>
+          ) : ngos.length === 0 ? (
+            <p className="text-2xs font-mono text-muted/40 py-2">
+              No organizations found
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {ngos.map((ngo, i) => (
+                <a
+                  key={i}
+                  href={ngo.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-surface-200/60 border border-white/[0.04] hover:border-accent/20 hover:bg-surface-300/40 transition-all group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-surface-300/60 border border-white/[0.06] flex items-center justify-center shrink-0 mt-0.5 group-hover:border-accent/20 transition-colors">
+                    <Heart className="w-4 h-4 text-muted/50 group-hover:text-accent-glow/60 transition-colors" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] text-white/80 group-hover:text-white transition-colors leading-snug">
+                      {ngo.name}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-2xs font-mono font-medium text-accent-glow/60">
+                        {ngo.focus}
+                      </span>
+                    </div>
+                    {ngo.reason && (
+                      <p className="text-2xs text-muted/50 leading-relaxed mt-1">
+                        {ngo.reason}
+                      </p>
+                    )}
+                  </div>
+                  <ExternalLink className="w-3.5 h-3.5 text-muted/20 group-hover:text-accent-glow/50 transition-colors shrink-0 mt-1" />
+                </a>
+              ))}
+            </div>
           )}
         </AnalysisSection>
 
