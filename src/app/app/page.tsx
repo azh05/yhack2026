@@ -187,6 +187,7 @@ export default function AppPage() {
         <ConflictDetail
           zone={selectedConflict}
           onClose={() => setSelectedConflict(null)}
+          timelineDate={timelineDate}
           isWatching={isWatching(selectedConflict.country)}
           onToggleWatch={(country) => {
             if (!user) {

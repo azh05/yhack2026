@@ -40,6 +40,7 @@ interface ConflictDetailProps {
   isWatching?: boolean;
   onToggleWatch?: (country: string) => void;
   onAskAI?: (message: string) => void;
+  timelineDate?: Date;
 }
 
 function SeverityMeter({ severity }: { severity: number }) {
@@ -118,6 +119,7 @@ export default function ConflictDetail({
   isWatching = false,
   onToggleWatch,
   onAskAI,
+  timelineDate,
 }: ConflictDetailProps) {
   const color = getSeverityColor(zone.severity);
   const label = getSeverityLabel(zone.severity);
@@ -133,6 +135,7 @@ export default function ConflictDetail({
   // re-fetch on every timeline tick (zone object is replaced but id stays).
   const fetchedAiForRef = useRef<string | null>(null);
   const fetchedNewsForRef = useRef<string | null>(null);
+  const fetchedNewsDateRef = useRef<string | null>(null);
 
   useEffect(() => {
     // If the zone already ships with a cached analysis, use it directly.
@@ -180,14 +183,30 @@ export default function ConflictDetail({
       fetchedNewsForRef.current = zone.country;
       return;
     }
-    // Skip if we already fetched for this exact conflict.
-    if (fetchedNewsForRef.current === zone.country) return;
+    // Skip if we already fetched for this exact conflict + date window.
+    const dateKey = timelineDate
+      ? timelineDate.toISOString().slice(0, 7)
+      : "latest";
+    if (
+      fetchedNewsForRef.current === zone.country &&
+      fetchedNewsDateRef.current === dateKey
+    )
+      return;
 
     let cancelled = false;
     setNewsLoading(true);
-    fetch(
-      `/api/news?country=${encodeURIComponent(zone.country)}&keyword=conflict&limit=8`,
-    )
+    // Build date window around the timeline date (±30 days) so news
+    // results are contextual to where the user is on the timeline.
+    let newsUrl = `/api/news?country=${encodeURIComponent(zone.country)}&keyword=conflict&limit=8`;
+    if (timelineDate) {
+      const after = new Date(timelineDate);
+      after.setDate(after.getDate() - 30);
+      const before = new Date(timelineDate);
+      before.setDate(before.getDate() + 1);
+      newsUrl += `&after=${after.toISOString()}&before=${before.toISOString()}`;
+    }
+
+    fetch(newsUrl)
       .then((res) => {
         if (!res.ok) throw new Error(`News API returned ${res.status}`);
         return res.json();
@@ -208,6 +227,7 @@ export default function ConflictDetail({
         }));
         setNewsSources(sources);
         fetchedNewsForRef.current = zone.country;
+        fetchedNewsDateRef.current = dateKey;
       })
       .catch((err) => {
         console.error("[fetchNews]", err);
@@ -219,7 +239,7 @@ export default function ConflictDetail({
     return () => {
       cancelled = true;
     };
-  }, [zone.id, zone.country]);
+  }, [zone.id, zone.country, timelineDate]);
 
   return (
     <div className="fixed left-[340px] top-14 bottom-[88px] w-[400px] z-30 flex flex-col glass border-r border-white/[0.04] animate-slide-up overflow-hidden">
