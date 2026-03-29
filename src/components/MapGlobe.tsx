@@ -8,6 +8,7 @@ import {
   getSeverityLabel,
   type ConflictZone,
 } from "@/data/conflicts";
+import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from "@/lib/useConflictEvents";
 
 mapboxgl.accessToken =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
@@ -17,6 +18,8 @@ interface MapGlobeProps {
   selectedConflict: ConflictZone | null;
   timelineDate: Date;
   conflictZones: ConflictZone[];
+  dbEvents?: DBEvent[];
+  flyToTarget?: { lat: number; lng: number } | null;
 }
 
 function buildGeoJSON(zones: ConflictZone[]) {
@@ -46,6 +49,8 @@ export default function MapGlobe({
   selectedConflict,
   timelineDate,
   conflictZones,
+  dbEvents = [],
+  flyToTarget,
 }: MapGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -321,6 +326,120 @@ export default function MapGlobe({
         },
       });
 
+      // === DB EVENTS (timeline-filtered, GPU-rendered) ===
+      m.addSource("db-events-heat", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      m.addLayer({
+        id: "db-events-heatmap",
+        type: "heatmap",
+        source: "db-events-heat",
+        maxzoom: 8,
+        paint: {
+          "heatmap-weight": ["interpolate", ["linear"], ["get", "severity"], 1, 0.1, 5, 0.4, 8, 0.7, 10, 1],
+          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.8, 4, 1.2, 8, 1.8],
+          "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(0,0,0,0)", 0.1, "rgba(250,204,21,0.1)", 0.3, "rgba(249,115,22,0.2)", 0.5, "rgba(239,68,68,0.3)", 0.7, "rgba(220,38,38,0.4)", 0.9, "rgba(153,27,27,0.5)", 1, "rgba(127,29,29,0.6)"],
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 25, 3, 45, 6, 65, 9, 85],
+          "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.7, 6, 0.5, 9, 0.2],
+        },
+      });
+
+      m.addSource("db-events-circles", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+        cluster: true,
+        clusterMaxZoom: 8,
+        clusterRadius: 50,
+        clusterProperties: {
+          maxSeverity: ["max", ["get", "severity"]],
+          totalFatalities: ["+", ["get", "fatalities30d"]],
+        },
+      });
+
+      m.addLayer({
+        id: "db-clusters",
+        type: "circle",
+        source: "db-events-circles",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": ["interpolate", ["linear"], ["get", "maxSeverity"], 3, "#facc15", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
+          "circle-radius": ["step", ["get", "point_count"], 14, 5, 20, 20, 28, 50, 36],
+          "circle-opacity": 0.7,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "rgba(255,255,255,0.15)",
+        },
+      });
+
+      m.addLayer({
+        id: "db-cluster-count",
+        type: "symbol",
+        source: "db-events-circles",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": "{point_count_abbreviated}",
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": 11,
+          "text-allow-overlap": true,
+        },
+        paint: { "text-color": "#ffffff", "text-halo-color": "rgba(0,0,0,0.5)", "text-halo-width": 1 },
+      });
+
+      m.addLayer({
+        id: "db-events-glow",
+        type: "circle",
+        source: "db-events-circles",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 10, 5, 16, 8, 22, 10, 30],
+          "circle-opacity": 0.15,
+          "circle-blur": 1,
+        },
+      });
+
+      m.addLayer({
+        id: "db-events-points",
+        type: "circle",
+        source: "db-events-circles",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 3, "#f59e0b", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 5, 5, 8, 8, 11, 10, 15],
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "rgba(255,255,255,0.25)",
+        },
+      });
+
+      const dbPopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
+      m.on("mouseenter", "db-events-points", (e) => {
+        m.getCanvas().style.cursor = "pointer";
+        if (e.features && e.features[0]) {
+          const props = e.features[0].properties!;
+          const coords = (e.features[0].geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+          dbPopup.setLngLat(coords).setHTML(
+            `<div style="font-size:11px;color:#e5e5e5;max-width:200px;"><strong>${props.name}</strong><br/><span style="color:#999;">${props.event_date}</span><br/>Fatalities: ${props.fatalities30d} · Severity: ${(props.severity as number).toFixed(1)}</div>`
+          ).addTo(m);
+        }
+      });
+      m.on("mouseleave", "db-events-points", () => { m.getCanvas().style.cursor = ""; dbPopup.remove(); });
+
+      m.on("click", "db-clusters", (e) => {
+        const features = m.queryRenderedFeatures(e.point, { layers: ["db-clusters"] });
+        if (!features.length) return;
+        const clusterId = features[0].properties?.cluster_id;
+        const source = m.getSource("db-events-circles") as mapboxgl.GeoJSONSource;
+        source.getClusterExpansionZoom(clusterId, ((err: any, zoom: any) => {
+          if (err || zoom == null) return;
+          const coords = (features[0].geometry as GeoJSON.Point).coordinates;
+          m.easeTo({ center: coords as [number, number], zoom: zoom + 0.5, duration: 800 });
+        }) as any);
+      });
+      m.on("mouseenter", "db-clusters", () => { m.getCanvas().style.cursor = "pointer"; });
+      m.on("mouseleave", "db-clusters", () => { m.getCanvas().style.cursor = ""; });
+
       // === CLUSTERED SOURCE FOR CLUSTER INDICATORS ===
       m.addSource("conflicts-clustered", {
         type: "geojson",
@@ -517,6 +636,32 @@ export default function MapGlobe({
       essential: true,
     });
   }, [selectedConflict]);
+
+  // Update DB events on timeline change
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const m = map.current;
+    const filtered = filterEventsByDate(dbEvents, timelineDate);
+    const geojson = buildGeoJSONFromEvents(filtered);
+
+    const heatSource = m.getSource("db-events-heat") as mapboxgl.GeoJSONSource;
+    if (heatSource) heatSource.setData(geojson);
+
+    const circleSource = m.getSource("db-events-circles") as mapboxgl.GeoJSONSource;
+    if (circleSource) circleSource.setData(geojson);
+  }, [dbEvents, timelineDate, mapLoaded]);
+
+  // Fly to chat target
+  useEffect(() => {
+    if (!map.current || !flyToTarget) return;
+    map.current.flyTo({
+      center: [flyToTarget.lng, flyToTarget.lat],
+      zoom: 5,
+      pitch: 40,
+      duration: 2000,
+      essential: true,
+    });
+  }, [flyToTarget]);
 
   return (
     <div className="absolute inset-0" style={{ top: "56px" }}>
