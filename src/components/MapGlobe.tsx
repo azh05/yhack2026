@@ -92,12 +92,23 @@ export default function MapGlobe({
     });
   }, [conflictZones, filters]);
 
+  // Build country → region lookup from conflict zones
+  const countryToRegion = useMemo(() => {
+    const map = new Map<string, string>();
+    conflictZones.forEach((z) => map.set(z.country, z.region));
+    return map;
+  }, [conflictZones]);
+
   // Filter DB events based on layer filters
   const filteredDbEvents = useMemo(() => {
     if (!filters) return dbEvents;
     return dbEvents.filter((e) => {
-      // Region filter — DB events don't have a "region" but have country
-      // We skip region filtering for DB events as they lack region mapping
+      // Region filter
+      if (filters.selectedRegion !== "All Regions") {
+        const region = countryToRegion.get(e.country);
+        if (region && region !== filters.selectedRegion) return false;
+        if (!region) return false; // exclude events from unmapped countries
+      }
       // Event type filter
       const typeId = EVENT_TYPE_MAP[e.event_type];
       if (typeId && !filters.activeEventTypes.has(typeId)) {
@@ -105,7 +116,7 @@ export default function MapGlobe({
       }
       return true;
     });
-  }, [dbEvents, filters]);
+  }, [dbEvents, filters, countryToRegion]);
 
   // Create custom DOM marker for individual (unclustered) points
   const createMarkerEl = useCallback(
