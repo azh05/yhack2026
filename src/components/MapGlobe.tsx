@@ -6,7 +6,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { CONFLICT_ZONES, type ConflictZone } from '@/data/conflicts';
 import { getConflictsAtDate } from '@/data/timeline';
 import type { MapFilters } from '@/data/filters';
-import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from '@/lib/useConflictEvents';
+import { type DBEvent, buildGeoJSONFromEvents } from '@/lib/useConflictEvents';
 
 mapboxgl.accessToken =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
@@ -510,11 +510,28 @@ export default function MapGlobe({
     });
   }, [selectedConflict]);
 
-  // Update DB events on timeline change
+  // Map ACLED event_type to filter IDs
+  const EVENT_TYPE_MAP: Record<string, string> = {
+    "Battles": "battles",
+    "Violence against civilians": "violence_civilians",
+    "Explosions/Remote violence": "explosions",
+    "Protests": "protests",
+    "Riots": "riots",
+    "Strategic developments": "strategic",
+  };
+
+  // Update DB events on timeline change, applying filters
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
-    const filtered = filterEventsByDate(dbEvents);
+
+    // Apply event type filter from Layers panel
+    const filtered = dbEvents.filter(e => {
+      const typeId = EVENT_TYPE_MAP[e.event_type];
+      if (typeId && !filters.activeTypes.has(typeId)) return false;
+      return true;
+    });
+
     const geojson = buildGeoJSONFromEvents(filtered);
 
     const heatSource = m.getSource("db-events-heat") as mapboxgl.GeoJSONSource;
@@ -522,7 +539,7 @@ export default function MapGlobe({
 
     const circleSource = m.getSource("db-events-circles") as mapboxgl.GeoJSONSource;
     if (circleSource) circleSource.setData(geojson);
-  }, [dbEvents, timelineDate, mapLoaded]);
+  }, [dbEvents, timelineDate, mapLoaded, filters.activeTypes]);
 
   // Fly to chat target
   useEffect(() => {

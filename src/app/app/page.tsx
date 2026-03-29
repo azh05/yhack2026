@@ -14,6 +14,7 @@ import type { MapFilters } from '@/data/filters';
 import { useConflictEvents } from '@/lib/useConflictEvents';
 import { buildZonesFromEvents } from '@/lib/buildZonesFromEvents';
 import { useAuth } from '@/lib/useAuth';
+import { useWatchlist } from '@/lib/useWatchlist';
 import AuthModal from '@/components/AuthModal';
 import {
   PanelLeft,
@@ -43,15 +44,10 @@ export default function AppPage() {
   const [selectedConflict, setSelectedConflict] = useState<ConflictZone | null>(null);
   const [timelineDate, setTimelineDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
-  const { events: dbEvents, earliestDate, loading: eventsLoading } = useConflictEvents(timelineDate);
-  const conflictZones = useMemo(() => buildZonesFromEvents(dbEvents), [dbEvents]);
-  const { user, signUp, signIn, signOut } = useAuth();
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
 
   // Filter state lifted to app level so RightPanel controls flow to MapGlobe
   const [filters, setFilters] = useState<MapFilters>({
-    activeTypes: new Set(['battles', 'violence_civilians', 'explosions', 'protests', 'riots', 'strategic']),
+    activeTypes: new Set(['battles', 'violence_civilians', 'explosions', 'riots']),
     selectedRegion: 'All Regions',
     severityRange: [1, 10],
     overlays: {
@@ -60,6 +56,14 @@ export default function AppPage() {
       borders: false,
     },
   });
+
+  const needsAllTypes = filters.activeTypes.has('protests') || filters.activeTypes.has('strategic');
+  const { events: dbEvents, earliestDate, loading: eventsLoading } = useConflictEvents(timelineDate, needsAllTypes);
+  const conflictZones = useMemo(() => buildZonesFromEvents(dbEvents), [dbEvents]);
+  const { user, signUp, signIn, signOut } = useAuth();
+  const { isWatching, addCountry, removeCountry } = useWatchlist(user?.id);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
 
   const handleMapCommand = useCallback(
     (cmd: { action: string; country: string; lat: number; lng: number }) => {
@@ -146,6 +150,18 @@ export default function AppPage() {
         <ConflictDetail
           zone={selectedConflict}
           onClose={() => setSelectedConflict(null)}
+          isWatching={isWatching(selectedConflict.country)}
+          onToggleWatch={(country) => {
+            if (!user) {
+              setAuthModalOpen(true);
+              return;
+            }
+            if (isWatching(country)) {
+              removeCountry(country);
+            } else {
+              addCountry(country);
+            }
+          }}
         />
       )}
 

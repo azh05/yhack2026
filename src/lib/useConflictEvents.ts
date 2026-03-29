@@ -1,83 +1,96 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 export interface DBEvent {
   id: number;
   event_date: string;
   event_type: string;
-  sub_event_type: string | null;
-  actor1: string | null;
-  actor2: string | null;
+  sub_event_type?: string | null;
+  actor1?: string | null;
+  actor2?: string | null;
   country: string;
   admin1: string | null;
-  admin2: string | null;
+  admin2?: string | null;
   latitude: number;
   longitude: number;
   fatalities: number;
-  notes: string | null;
-  source: string | null;
+  notes?: string | null;
+  source?: string | null;
   severity_score: number | null;
-  created_at: string;
+  created_at?: string;
 }
 
-export function useConflictEvents(timelineDate: Date) {
-  const [events, setEvents] = useState<DBEvent[]>([]);
+export function useConflictEvents(timelineDate: Date, includeAll: boolean = false) {
+  const [allEvents, setAllEvents] = useState<DBEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [earliestDate, setEarliestDate] = useState<string | undefined>();
-  const lastFetchedWindow = useRef<string>('');
+  const loadedRef = useRef<string>('');
 
-  const fetchEvents = useCallback(async (date: Date) => {
-    const endStr = date.toISOString().split('T')[0];
-    const windowStart = new Date(date);
-    windowStart.setDate(windowStart.getDate() - 60);
-    const startStr = windowStart.toISOString().split('T')[0];
+  useEffect(() => {
+    const key = includeAll ? 'all' : 'conflict';
+    if (loadedRef.current === 'all' || loadedRef.current === key) return;
+    loadedRef.current = key;
 
-    // Don't refetch if we're in the same window (rounded to week)
-    const windowKey = `${startStr.slice(0, 7)}-${endStr.slice(0, 7)}`;
-    if (windowKey === lastFetchedWindow.current) return;
-    lastFetchedWindow.current = windowKey;
+    setLoading(true);
+    let cancelled = false;
 
-    try {
-      setLoading(true);
-      // Fast first load: only events with fatalities (much smaller set, renders instantly)
-      const fastRes = await fetch(`/api/events?start_date=${startStr}&end_date=${endStr}&min_fatalities=1&limit=10000`);
-      const fastData = await fastRes.json();
-      if (!fastData.error) {
-        setEvents(fastData.events || []);
-        setLoading(false);
+    // Stream pages progressively — show data as each page arrives
+    async function loadPages() {
+      const pageSize = 1000;
+      let page = 0;
+      let accumulated: DBEvent[] = [];
+      const types = includeAll ? '' : '&event_type_filter=conflict';
+
+      while (!cancelled) {
+        try {
+          const res = await fetch(`/api/events-light?page=${page}&page_size=${pageSize}${includeAll ? '&include_all=true' : ''}`);
+          const data = await res.json();
+          if (data.error || !data.events?.length) break;
+
+          accumulated = [...accumulated, ...data.events];
+          setAllEvents(accumulated);
+
+          // Set earliest from first batch
+          if (page === 0 && accumulated.length > 0) {
+            setLoading(false);
+          }
+
+          if (data.events.length < pageSize) break;
+          page++;
+        } catch {
+          break;
+        }
       }
 
-      // Then backfill all events (including 0-fatality) in background
-      const fullRes = await fetch(`/api/events?start_date=${startStr}&end_date=${endStr}&limit=50000`);
-      const fullData = await fullRes.json();
-      if (!fullData.error) {
-        setEvents(fullData.events || []);
+      if (accumulated.length > 0) {
+        const earliest = accumulated.reduce(
+          (min: string, e: DBEvent) => e.event_date < min ? e.event_date : min,
+          accumulated[0].event_date
+        );
+        setEarliestDate(earliest);
       }
-    } catch {
-      setError('Failed to fetch events');
-    } finally {
       setLoading(false);
     }
-  }, []);
 
-  // Set earliest date to match our data
-  useEffect(() => {
-    setEarliestDate('2024-01-06');
-  }, []);
+    loadPages();
+    return () => { cancelled = true; };
+  }, [includeAll]);
 
-  useEffect(() => {
-    fetchEvents(timelineDate);
-  }, [timelineDate, fetchEvents]);
+  // Filter to 60-day window around timeline date — pure client-side, instant
+  const events = useMemo(() => {
+    const endStr = timelineDate.toISOString().split('T')[0];
+    const windowStart = new Date(timelineDate);
+    windowStart.setDate(windowStart.getDate() - 60);
+    const startStr = windowStart.toISOString().split('T')[0];
+    return allEvents.filter(e => e.event_date >= startStr && e.event_date <= endStr);
+  }, [allEvents, timelineDate]);
 
   return { events, loading, error, earliestDate };
 }
 
-// No-op filter since we fetch the window server-side now
-export function filterEventsByDate(events: DBEvent[]): DBEvent[] {
-  return events;
-}
+const EXCLUDED_TYPES = new Set(['Protests', 'Strategic developments']);
 
 // Aggregate DB events into country-level zones for the left panel & navbar
 export function aggregateEventsToZones(events: DBEvent[]): {
@@ -94,7 +107,6 @@ export function aggregateEventsToZones(events: DBEvent[]): {
   primaryType: string;
   description: string;
 }[] {
-  const EXCLUDED_TYPES = new Set(['Protests', 'Strategic developments']);
   const filtered = events.filter(e => !EXCLUDED_TYPES.has(e.event_type));
 
   const byCountry: Record<string, DBEvent[]> = {};
@@ -110,18 +122,15 @@ export function aggregateEventsToZones(events: DBEvent[]): {
       const maxSeverity = Math.max(...evts.map(e => e.severity_score || 1));
       const severity = Math.round(Math.min(10, (avgSeverity * 0.4 + maxSeverity * 0.6)) * 10) / 10;
 
-      // Centroid
       const lat = evts.reduce((s, e) => s + e.latitude, 0) / evts.length;
       const lng = evts.reduce((s, e) => s + e.longitude, 0) / evts.length;
 
-      // Most common event type
       const typeCounts: Record<string, number> = {};
       for (const e of evts) {
         typeCounts[e.event_type] = (typeCounts[e.event_type] || 0) + 1;
       }
       const primaryType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
 
-      // Simple trend: compare first half vs second half event counts
       const sorted = [...evts].sort((a, b) => a.event_date.localeCompare(b.event_date));
       const mid = Math.floor(sorted.length / 2);
       const firstHalf = sorted.slice(0, mid).length;
@@ -148,30 +157,38 @@ export function aggregateEventsToZones(events: DBEvent[]): {
     .sort((a, b) => b.severity - a.severity);
 }
 
+// Seeded random jitter so same event always gets same offset
+function jitter(id: number): [number, number] {
+  const seed = id * 2654435761 >>> 0;
+  const lngOffset = ((seed % 1000) / 1000 - 0.5) * 0.2;
+  const latOffset = (((seed >> 10) % 1000) / 1000 - 0.5) * 0.2;
+  return [lngOffset, latOffset];
+}
+
 // Build GeoJSON from DB events
 export function buildGeoJSONFromEvents(events: DBEvent[]) {
   return {
     type: 'FeatureCollection' as const,
-    features: events.map(e => ({
-      type: 'Feature' as const,
-      properties: {
-        id: String(e.id),
-        name: `${e.event_type} — ${e.admin1 || e.country}`,
-        severity: e.severity_score || 5,
-        fatalities30d: e.fatalities,
-        eventCount: 1,
-        country: e.country,
-        trend: 'stable',
-        event_date: e.event_date,
-        event_type: e.event_type,
-        notes: e.notes,
-        actor1: e.actor1,
-        actor2: e.actor2,
-      },
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [e.longitude, e.latitude],
-      },
-    })),
+    features: events.map(e => {
+      const [lngJ, latJ] = jitter(e.id);
+      return {
+        type: 'Feature' as const,
+        properties: {
+          id: String(e.id),
+          name: `${e.event_type} — ${e.admin1 || e.country}`,
+          severity: e.severity_score || 5,
+          fatalities30d: e.fatalities,
+          eventCount: 1,
+          country: e.country,
+          trend: 'stable',
+          event_date: e.event_date,
+          event_type: e.event_type,
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [e.longitude + lngJ, e.latitude + latJ],
+        },
+      };
+    }),
   };
 }

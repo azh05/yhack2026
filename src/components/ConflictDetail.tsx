@@ -141,10 +141,10 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
   useEffect(() => {
     if (zone.aiAnalysis.background) {
       setAiAnalysis(zone.aiAnalysis);
-      fetchedAiForRef.current = zone.id;
+      fetchedAiForRef.current = zone.country;
       return;
     }
-    if (fetchedAiForRef.current === zone.id) return;
+    if (fetchedAiForRef.current === zone.country) return;
 
     let cancelled = false;
     setAiLoading(true);
@@ -160,7 +160,7 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
           humanitarianImpact: b.humanitarian_impact || "",
           outlook: b.outlook || "",
         });
-        fetchedAiForRef.current = zone.id;
+        fetchedAiForRef.current = zone.country;
       })
       .catch((err) => {
         console.error("[fetchAiAnalysis]", err);
@@ -177,11 +177,11 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
     // If the zone already ships with cached news, use it directly.
     if (zone.newsSources && zone.newsSources.length > 0) {
       setNewsSources(zone.newsSources);
-      fetchedNewsForRef.current = zone.id;
+      fetchedNewsForRef.current = zone.country;
       return;
     }
     // Skip if we already fetched for this exact conflict.
-    if (fetchedNewsForRef.current === zone.id) return;
+    if (fetchedNewsForRef.current === zone.country) return;
 
     let cancelled = false;
     const backendUrl =
@@ -221,7 +221,7 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
           time: a.seendate ? formatGdeltDate(a.seendate) : "",
         }));
         setNewsSources(sources);
-        fetchedNewsForRef.current = zone.id;
+        fetchedNewsForRef.current = zone.country;
       })
       .catch((err) => {
         console.error("[fetchNews]", err);
