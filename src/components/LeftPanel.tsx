@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -10,9 +10,6 @@ import {
   MapPin,
   ChevronRight,
   X,
-  Sparkles,
-  MessageSquare,
-  Send,
 } from 'lucide-react';
 import {
   getSeverityColor,
@@ -59,13 +56,6 @@ function TrendBadge({ trend }: { trend: string }) {
 }
 
 export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict, timelineDate, filters, searchQuery = '', conflictZones, isLoading = false }: LeftPanelProps) {
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<{ role: string; text: string }[]>([
-    {
-      role: 'assistant',
-      text: 'Welcome to ConflictLens AI. Ask me about any conflict zone, region safety, or current events.',
-    },
-  ]);
 
   // Use backend conflictZones if available, otherwise fall back to local data
   const sortedZones = useMemo(() => {
@@ -75,6 +65,7 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
       .filter(zone => {
         if (filters.selectedRegion !== 'All Regions' && zone.region !== filters.selectedRegion) return false;
         if (zone.severity < filters.severityRange[0] || zone.severity > filters.severityRange[1]) return false;
+        if (!filters.activeTypes.has(zone.eventType)) return false;
         if (q) {
           const haystack = `${zone.name} ${zone.country} ${zone.region} ${zone.primaryType}`.toLowerCase();
           if (!haystack.includes(q)) return false;
@@ -83,19 +74,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
       })
       .sort((a, b) => b.severity - a.severity);
   }, [timelineDate, filters, searchQuery, conflictZones]);
-
-  const handleChatSend = () => {
-    if (!chatInput.trim()) return;
-    setChatMessages(prev => [
-      ...prev,
-      { role: 'user', text: chatInput },
-      {
-        role: 'assistant',
-        text: `Analyzing "${chatInput}"... Searching ACLED and GDELT data sources for a comprehensive briefing. This feature uses the Claude API for real-time conflict intelligence.`,
-      },
-    ]);
-    setChatInput('');
-  };
 
   if (!isOpen) return null;
 
@@ -208,48 +186,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
         </div>
       </div>
 
-      {/* AI Chat Section */}
-      <div className="border-t border-white/[0.04]">
-        <div className="max-h-32 overflow-y-auto p-3 space-y-2">
-          {chatMessages.slice(-3).map((msg, i) => (
-            <div
-              key={i}
-              className={`text-2xs leading-relaxed ${
-                msg.role === 'assistant' ? 'text-muted-light/70' : 'text-accent-glow/90'
-              }`}
-            >
-              {msg.role === 'assistant' && (
-                <Sparkles className="w-3 h-3 text-accent-glow/50 inline mr-1 -mt-0.5" />
-              )}
-              {msg.text}
-            </div>
-          ))}
-        </div>
-
-        <div className="p-3 pt-0">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-200/80 border border-white/[0.06] focus-within:border-accent/30 transition-colors">
-            <MessageSquare className="w-3.5 h-3.5 text-muted/50 shrink-0" />
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
-              placeholder="Ask ConflictLens AI..."
-              className="flex-1 bg-transparent text-xs text-white/90 placeholder:text-muted/40 outline-none font-body"
-            />
-            <button
-              onClick={handleChatSend}
-              disabled={!chatInput.trim()}
-              className="p-1.5 rounded-lg bg-accent/80 text-white hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Send className="w-3 h-3" />
-            </button>
-          </div>
-          <p className="text-center text-2xs text-muted/30 mt-1.5 font-mono">
-            Powered by Claude AI &middot; ACLED + GDELT data
-          </p>
-        </div>
-      </div>
     </aside>
   );
 }
