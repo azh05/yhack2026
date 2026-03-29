@@ -65,7 +65,16 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
       .filter(zone => {
         if (filters.selectedRegion !== 'All Regions' && zone.region !== filters.selectedRegion) return false;
         if (zone.severity < filters.severityRange[0] || zone.severity > filters.severityRange[1]) return false;
-        if (!filters.activeTypes.has(zone.eventType)) return false;
+        // Check event type filter — use eventType if available (local data), fall back to primaryType mapping
+        const typeId = zone.eventType ?? ({
+          'Battles': 'battles',
+          'Violence against civilians': 'violence_civilians',
+          'Explosions/Remote violence': 'explosions',
+          'Protests': 'protests',
+          'Riots': 'riots',
+          'Strategic developments': 'strategic',
+        } as Record<string, string>)[zone.primaryType];
+        if (typeId && !filters.activeTypes.has(typeId)) return false;
         if (q) {
           const haystack = `${zone.name} ${zone.country} ${zone.region} ${zone.primaryType}`.toLowerCase();
           if (!haystack.includes(q)) return false;
