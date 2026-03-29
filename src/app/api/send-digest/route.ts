@@ -122,6 +122,13 @@ Rules:
 }
 
 export async function POST(req: NextRequest) {
+  if (!supabase) {
+    return NextResponse.json(
+      { error: "Supabase is not configured — cannot send digests" },
+      { status: 503 },
+    );
+  }
+
   const { frequency } = await req.json();
   const targetFrequency = frequency || "daily";
 
@@ -148,7 +155,7 @@ export async function POST(req: NextRequest) {
     subscribers.map(async (sub) => {
       let watchedCountries: string[] = [];
 
-      if (sub.user_id) {
+      if (sub.user_id && supabase) {
         const { data: watchlist } = await supabase
           .from("watchlist")
           .select("country")
