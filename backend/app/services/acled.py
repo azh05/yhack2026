@@ -53,7 +53,7 @@ async def fetch_acled_events(
     country: str,
     start_date: str,
     end_date: str,
-    limit: int = 500,
+    limit: int = 10000,
 ) -> list[ACLEDEvent]:
     token = await _get_access_token(client)
     headers = {"Authorization": f"Bearer {token}"}

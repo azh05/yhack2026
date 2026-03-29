@@ -14,9 +14,11 @@ interface ChatPanelProps {
   isOpen: boolean;
   onToggle: () => void;
   onMapCommand?: (cmd: { action: string; country: string; lat: number; lng: number }) => void;
+  pendingMessage?: string | null;
+  onPendingMessageHandled?: () => void;
 }
 
-export default function ChatPanel({ isOpen, onToggle, onMapCommand }: ChatPanelProps) {
+export default function ChatPanel({ isOpen, onToggle, onMapCommand, pendingMessage, onPendingMessageHandled }: ChatPanelProps) {
   const [chatInput, setChatInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<{ role: string; text: string }[]>([
@@ -26,6 +28,42 @@ export default function ChatPanel({ isOpen, onToggle, onMapCommand }: ChatPanelP
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const pendingHandledRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (pendingMessage && isOpen && !isLoading && pendingMessage !== pendingHandledRef.current) {
+      pendingHandledRef.current = pendingMessage;
+      onPendingMessageHandled?.();
+      // Auto-send the pending message
+      setChatMessages(prev => [...prev, { role: 'user', text: pendingMessage }]);
+      setIsLoading(true);
+
+      fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: pendingMessage,
+          history: chatMessages.slice(-10),
+        }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            setChatMessages(prev => [...prev, { role: 'assistant', text: `Error: ${data.error}` }]);
+          } else {
+            setChatMessages(prev => [...prev, { role: 'assistant', text: data.response }]);
+            if (data.mapCommand && onMapCommand) {
+              onMapCommand(data.mapCommand);
+            }
+          }
+        })
+        .catch(() => {
+          setChatMessages(prev => [...prev, { role: 'assistant', text: 'Failed to connect. Please try again.' }]);
+        })
+        .finally(() => setIsLoading(false));
+    }
+  }, [pendingMessage, isOpen, isLoading]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

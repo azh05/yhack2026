@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer as supabase } from "@/lib/supabase-server";
 import { Resend } from "resend";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
@@ -6,16 +6,93 @@ import { NextRequest, NextResponse } from "next/server";
 const resend = new Resend(process.env.RESEND_API_KEY!);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-async function generateDigestContent(): Promise<string> {
+interface NewsArticle {
+  title: string;
+  source: string;
+  url: string;
+  pubDate: string;
+}
+
+function parseRSSItems(xml: string): NewsArticle[] {
+  const articles: NewsArticle[] = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const item = match[1];
+    const title = item.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "";
+    const link = item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "";
+    const pubDate = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
+    const source = item.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "";
+    if (title && link) articles.push({ title: title.trim(), url: link.trim(), source: source.trim(), pubDate: pubDate.trim() });
+  }
+  return articles;
+}
+
+async function fetchNewsForCountry(country: string): Promise<NewsArticle[]> {
+  try {
+    const query = encodeURIComponent(`${country} conflict war`);
+    const res = await fetch(`https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    const xml = await res.text();
+    return parseRSSItems(xml).slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+async function generateDigestEmail(newsByCountry: Record<string, NewsArticle[]>, watchedCountries: string[]): Promise<string> {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const prompt = `You are a conflict intelligence analyst. Generate a brief daily conflict digest email in HTML format. Include:
-- A greeting
-- Top 5 escalating conflicts globally with 1-2 sentence summaries each
-- Top 3 de-escalating situations
-- A brief global outlook
+  const newsContext = Object.entries(newsByCountry)
+    .map(([country, articles]) =>
+      `## ${country}\n` + articles.map(a => `- "${a.title}" (${a.source}, ${a.pubDate})\n  ${a.url}`).join("\n")
+    ).join("\n\n");
 
-Use clean HTML with inline styles. Keep it concise and factual. Use a dark theme (#1a1a1a background, #e5e5e5 text, red accents for escalation, green for de-escalation).`;
+  const prompt = `You are a conflict intelligence analyst. Generate a weekly conflict digest email as a complete HTML document.
+
+The user is watching: ${watchedCountries.join(", ")}
+
+Here are the latest real news headlines for their watched countries:
+
+${newsContext}
+
+Generate a complete HTML email. Follow this EXACT structure:
+
+<div style="background:#0a0e17; padding:0; margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:600px; margin:0 auto; padding:32px 24px;">
+
+    <!-- Header -->
+    <div style="border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:20px; margin-bottom:24px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+        <span style="font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.3); text-transform:uppercase;">ConflictLens Weekly</span>
+      </div>
+      <h1 style="font-size:24px; font-weight:700; color:#ffffff; margin:8px 0 0;">Latest Escalations</h1>
+      <p style="font-size:13px; color:rgba(255,255,255,0.35); margin:6px 0 0;">[today's date] · Watching: ${watchedCountries.join(", ")}</p>
+    </div>
+
+    <!-- For EACH of the 8 stories, use this card format: -->
+    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px 20px; margin-bottom:12px; border-left:3px solid [use #ef4444 for high severity, #f97316 for moderate, #3b82f6 for watchlist];">
+      <div style="font-size:11px; letter-spacing:1px; color:[#ef4444 for severe, #f97316 for moderate]; text-transform:uppercase; font-weight:600; margin-bottom:6px;">🔴 COUNTRY NAME</div>
+      <p style="font-size:14px; color:rgba(255,255,255,0.8); line-height:1.5; margin:0 0 8px;">One sentence summary of what happened.</p>
+      <a href="[url]" style="font-size:12px; color:#60a5fa; text-decoration:none;">Read source →</a>
+    </div>
+
+    <!-- Footer -->
+    <div style="border-top:1px solid rgba(255,255,255,0.06); padding-top:20px; margin-top:24px;">
+      <p style="font-size:13px; color:rgba(255,255,255,0.5); line-height:1.5; margin:0 0 16px;">[1-line global outlook]</p>
+      <p style="font-size:11px; color:rgba(255,255,255,0.2); margin:0;">Generated by ConflictLens · ACLED + GDELT data</p>
+    </div>
+  </div>
+</div>
+
+Rules:
+- Pick the 8 most important/escalating stories
+- Use the EXACT HTML structure above — do not deviate
+- Use #ef4444 border for high severity, #f97316 for moderate, #3b82f6 for watchlist countries
+- Country names in uppercase with colored dot emoji (🔴 severe, 🟠 moderate, 🔵 watchlist)
+- Include real article URLs as "Read source →" links
+- Output ONLY the HTML, no markdown or explanation`;
 
   const result = await model.generateContent(prompt);
   return result.response.text();
@@ -23,13 +100,11 @@ Use clean HTML with inline styles. Keep it concise and factual. Use a dark theme
 
 export async function POST(req: NextRequest) {
   const { frequency } = await req.json();
-
   const targetFrequency = frequency || "daily";
 
-  // Get active subscribers for this frequency
   const { data: subscribers, error: subError } = await supabase
     .from("email_subscribers")
-    .select("email, regions")
+    .select("email, user_id")
     .eq("is_active", true)
     .eq("frequency", targetFrequency);
 
@@ -41,19 +116,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "No subscribers for this frequency" });
   }
 
-  // Generate digest content
-  const htmlContent = await generateDigestContent();
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const dateRange = `${weekAgo.toLocaleDateString("en-US", { month: "short", day: "numeric" })} — ${today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 
-  // Send to all subscribers
   const results = await Promise.allSettled(
-    subscribers.map((sub) =>
-      resend.emails.send({
-        from: "War Digest <digest@war.app>",
+    subscribers.map(async (sub) => {
+      let watchedCountries: string[] = [];
+
+      if (sub.user_id) {
+        const { data: watchlist } = await supabase
+          .from("watchlist")
+          .select("country")
+          .eq("user_id", sub.user_id);
+        watchedCountries = (watchlist || []).map(w => w.country);
+      }
+
+      // Default countries if no watchlist
+      if (watchedCountries.length === 0) {
+        watchedCountries = ["Ukraine", "Sudan", "Palestine", "Myanmar"];
+      }
+
+      // Fetch latest news for each watched country
+      const newsByCountry: Record<string, NewsArticle[]> = {};
+      await Promise.all(
+        watchedCountries.slice(0, 6).map(async (country) => {
+          newsByCountry[country] = await fetchNewsForCountry(country);
+        })
+      );
+
+      const htmlContent = await generateDigestEmail(newsByCountry, watchedCountries);
+
+      return resend.emails.send({
+        from: "War Digest <onboarding@resend.dev>",
         to: sub.email,
-        subject: `War Daily Conflict Digest — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+        subject: `War Weekly Digest — ${dateRange}${watchedCountries.length > 0 ? ` · ${watchedCountries.slice(0, 2).join(", ")}` : ""}`,
         html: htmlContent,
-      })
-    )
+      });
+    })
   );
 
   const sent = results.filter((r) => r.status === "fulfilled").length;

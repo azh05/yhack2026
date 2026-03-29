@@ -33,8 +33,8 @@ const TIMELAPSE_MODES = [
   { id: 'year', label: 'Year', days: 365, playbackPctPerSec: 0.3 },
 ];
 
-const DEFAULT_START = '2025-09-01';
-const END_DATE = new Date('2026-03-28');
+const DEFAULT_START = '2024-01-01';
+const END_DATE = new Date('2026-03-29');
 
 export default function TimelineBar({ onDateChange, eventCount, earliestDate }: TimelineBarProps) {
   const START_DATE = new Date(earliestDate || DEFAULT_START);

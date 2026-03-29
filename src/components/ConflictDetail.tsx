@@ -24,6 +24,7 @@ import {
   Shield,
   Activity,
   Loader2,
+  Bot,
 } from "lucide-react";
 import {
   getSeverityColor,
@@ -36,18 +37,9 @@ import {
 interface ConflictDetailProps {
   zone: ConflictZone;
   onClose: () => void;
-}
-
-function formatGdeltDate(seendate: string): string {
-  try {
-    // GDELT format: "20250328T120000Z"
-    const year = seendate.slice(0, 4);
-    const month = seendate.slice(4, 6);
-    const day = seendate.slice(6, 8);
-    return `${year}-${month}-${day}`;
-  } catch {
-    return seendate;
-  }
+  isWatching?: boolean;
+  onToggleWatch?: (country: string) => void;
+  onAskAI?: (message: string) => void;
 }
 
 function SeverityMeter({ severity }: { severity: number }) {
@@ -120,7 +112,13 @@ function AnalysisSection({
   );
 }
 
-export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
+export default function ConflictDetail({
+  zone,
+  onClose,
+  isWatching = false,
+  onToggleWatch,
+  onAskAI,
+}: ConflictDetailProps) {
   const color = getSeverityColor(zone.severity);
   const label = getSeverityLabel(zone.severity);
 
@@ -140,54 +138,26 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
     // If the zone already ships with a cached analysis, use it directly.
     if (zone.aiAnalysis.background) {
       setAiAnalysis(zone.aiAnalysis);
-      fetchedAiForRef.current = zone.id;
+      fetchedAiForRef.current = zone.country;
       return;
     }
-    // Skip if we already fetched for this exact conflict.
-    if (fetchedAiForRef.current === zone.id) return;
+    if (fetchedAiForRef.current === zone.country) return;
 
     let cancelled = false;
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
     setAiLoading(true);
-    fetch(
-      `${backendUrl}/api/analysis?country=${encodeURIComponent(zone.country)}`,
-    )
+    fetch(`/api/briefing?country=${encodeURIComponent(zone.country)}`)
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled || !data?.summary) return;
-        const summary: string = data.summary;
-
-        const extract = (label: string, nextLabels: string[]): string => {
-          const start = summary.indexOf(`**${label}:**`);
-          if (start === -1) return "";
-          const contentStart = start + `**${label}:**`.length;
-          let end = summary.length;
-          for (const next of nextLabels) {
-            const idx = summary.indexOf(`**${next}:**`, contentStart);
-            if (idx !== -1 && idx < end) end = idx;
-          }
-          return summary.slice(contentStart, end).trim();
-        };
-
-        const allLabels = [
-          "Background",
-          "Current Situation",
-          "Key Actors",
-          "Humanitarian Impact",
-          "Outlook",
-        ];
+        if (cancelled || !data?.briefing) return;
+        const b = data.briefing;
         setAiAnalysis({
-          background: extract("Background", allLabels.slice(1)),
-          currentSituation: extract("Current Situation", allLabels.slice(2)),
-          keyActors: [],
-          humanitarianImpact: extract(
-            "Humanitarian Impact",
-            allLabels.slice(4),
-          ),
-          outlook: extract("Outlook", []),
+          background: b.background || "",
+          currentSituation: b.current_situation || "",
+          keyActors: b.key_actors || [],
+          humanitarianImpact: b.humanitarian_impact || "",
+          outlook: b.outlook || "",
         });
-        fetchedAiForRef.current = zone.id;
+        fetchedAiForRef.current = zone.country;
       })
       .catch((err) => {
         console.error("[fetchAiAnalysis]", err);
@@ -204,35 +174,34 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
     // If the zone already ships with cached news, use it directly.
     if (zone.newsSources && zone.newsSources.length > 0) {
       setNewsSources(zone.newsSources);
-      fetchedNewsForRef.current = zone.id;
+      fetchedNewsForRef.current = zone.country;
       return;
     }
     // Skip if we already fetched for this exact conflict.
-    if (fetchedNewsForRef.current === zone.id) return;
+    if (fetchedNewsForRef.current === zone.country) return;
 
     let cancelled = false;
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
     setNewsLoading(true);
-    fetch(`${backendUrl}/api/news?country=${encodeURIComponent(zone.country)}`)
+    fetch(
+      `/api/news?country=${encodeURIComponent(zone.country)}&keyword=conflict&limit=8`,
+    )
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        const sources: NewsSource[] = (data.articles ?? []).map(
-          (a: {
-            title: string;
-            url: string;
-            source_country: string;
-            seendate: string;
-          }) => ({
-            headline: a.title,
-            url: a.url,
-            outlet: a.source_country || "Unknown",
-            time: a.seendate ? formatGdeltDate(a.seendate) : "",
-          }),
-        );
+        const articles = (data.articles ?? []) as {
+          title: string;
+          url: string;
+          source: string;
+          pub_date: string;
+        }[];
+        const sources: NewsSource[] = articles.map((a) => ({
+          headline: a.title,
+          url: a.url,
+          outlet: a.source || "Unknown",
+          time: a.pub_date ? new Date(a.pub_date).toLocaleDateString() : "",
+        }));
         setNewsSources(sources);
-        fetchedNewsForRef.current = zone.id;
+        fetchedNewsForRef.current = zone.country;
       })
       .catch((err) => {
         console.error("[fetchNews]", err);
@@ -337,10 +306,10 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
               frequency
             </span>
           )}
-          {zone.trend === "stable" && (
+          {zone.trend === "persistent" && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-300/50 border border-white/[0.06] text-2xs font-mono text-muted-light">
-              <Minus className="w-3 h-3" /> Stable — no significant change in
-              intensity
+              <Minus className="w-3 h-3" /> Persistent — no significant change
+              in intensity
             </span>
           )}
         </div>
@@ -458,6 +427,23 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
           )}
         </AnalysisSection>
 
+        {/* Go Deeper with AI */}
+        {onAskAI && (
+          <div className="px-5 py-3">
+            <button
+              onClick={() =>
+                onAskAI(
+                  `Give me a deeper analysis of the conflict in ${zone.country}. Cover the root causes, current dynamics, key turning points, and what to watch for next.`,
+                )
+              }
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent/15 border border-accent/20 text-xs font-display font-semibold text-accent-glow hover:bg-accent/25 transition-colors"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              Go Deeper with AI
+            </button>
+          </div>
+        )}
+
         {/* Data Attribution */}
         <div className="px-5 py-2">
           <p className="text-2xs text-muted/30 font-mono">
@@ -523,14 +509,40 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
       </div>
 
       {/* Bottom actions */}
-      <div className="flex items-center gap-2 px-5 py-3 border-t border-white/[0.04] bg-surface-50/50">
-        <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-accent/80 hover:bg-accent text-white text-xs font-display font-semibold transition-colors shadow-lg shadow-accent/20">
+      <div className="flex items-center gap-2 px-5 py-3 border-t border-white/[0.04] bg-surface-50/50 relative z-50">
+        <button
+          onClick={() => onToggleWatch?.(zone.country)}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-display font-semibold transition-colors shadow-lg ${
+            isWatching
+              ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 shadow-emerald-500/10"
+              : "bg-accent/80 hover:bg-accent text-white shadow-accent/20"
+          }`}
+        >
           <BookmarkPlus className="w-4 h-4" />
-          Watch Zone
+          {isWatching ? "Watching" : "Watch Zone"}
         </button>
-        <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-300/50 hover:bg-surface-300/80 text-muted-light text-xs font-display font-medium transition-colors border border-white/[0.06]">
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}/conflict/${encodeURIComponent(zone.country)}`;
+            navigator.clipboard
+              .writeText(url)
+              .then(() => {
+                const btn = document.getElementById("share-btn");
+                if (btn) {
+                  btn.textContent = "Copied!";
+                  setTimeout(() => {
+                    btn.textContent = "Share";
+                  }, 2000);
+                }
+              })
+              .catch(() => {
+                window.open(url, "_blank");
+              });
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-300/50 hover:bg-surface-300/80 text-muted-light text-xs font-display font-medium transition-colors border border-white/[0.06]"
+        >
           <Share2 className="w-4 h-4" />
-          Share
+          <span id="share-btn">Share</span>
         </button>
       </div>
     </div>
