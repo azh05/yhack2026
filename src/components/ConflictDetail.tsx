@@ -36,6 +36,8 @@ import {
 interface ConflictDetailProps {
   zone: ConflictZone;
   onClose: () => void;
+  isWatching?: boolean;
+  onToggleWatch?: (country: string) => void;
 }
 
 function formatGdeltDate(seendate: string): string {
@@ -120,7 +122,7 @@ function AnalysisSection({
   );
 }
 
-export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
+export default function ConflictDetail({ zone, onClose, isWatching = false, onToggleWatch }: ConflictDetailProps) {
   const color = getSeverityColor(zone.severity);
   const label = getSeverityLabel(zone.severity);
 
@@ -137,55 +139,26 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
   const fetchedNewsForRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // If the zone already ships with a cached analysis, use it directly.
     if (zone.aiAnalysis.background) {
       setAiAnalysis(zone.aiAnalysis);
       fetchedAiForRef.current = zone.id;
       return;
     }
-    // Skip if we already fetched for this exact conflict.
     if (fetchedAiForRef.current === zone.id) return;
 
     let cancelled = false;
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
     setAiLoading(true);
-    fetch(
-      `${backendUrl}/api/analysis?country=${encodeURIComponent(zone.country)}`,
-    )
+    fetch(`/api/briefing?country=${encodeURIComponent(zone.country)}`)
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled || !data?.summary) return;
-        const summary: string = data.summary;
-
-        const extract = (label: string, nextLabels: string[]): string => {
-          const start = summary.indexOf(`**${label}:**`);
-          if (start === -1) return "";
-          const contentStart = start + `**${label}:**`.length;
-          let end = summary.length;
-          for (const next of nextLabels) {
-            const idx = summary.indexOf(`**${next}:**`, contentStart);
-            if (idx !== -1 && idx < end) end = idx;
-          }
-          return summary.slice(contentStart, end).trim();
-        };
-
-        const allLabels = [
-          "Background",
-          "Current Situation",
-          "Key Actors",
-          "Humanitarian Impact",
-          "Outlook",
-        ];
+        if (cancelled || !data?.briefing) return;
+        const b = data.briefing;
         setAiAnalysis({
-          background: extract("Background", allLabels.slice(1)),
-          currentSituation: extract("Current Situation", allLabels.slice(2)),
-          keyActors: [],
-          humanitarianImpact: extract(
-            "Humanitarian Impact",
-            allLabels.slice(4),
-          ),
-          outlook: extract("Outlook", []),
+          background: b.background || "",
+          currentSituation: b.current_situation || "",
+          keyActors: b.key_actors || [],
+          humanitarianImpact: b.humanitarian_impact || "",
+          outlook: b.outlook || "",
         });
         fetchedAiForRef.current = zone.id;
       })
@@ -226,9 +199,21 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
           language?: string;
         }[];
         // Sort English articles first
+        const ENGLISH_COUNTRIES = new Set([
+          'United States', 'United Kingdom', 'Canada', 'Australia',
+          'New Zealand', 'Ireland', 'South Africa', 'Nigeria',
+          'Kenya', 'Ghana', 'India', 'Singapore', 'Jamaica',
+        ]);
+        const isLikelyEnglish = (a: { language?: string; title: string; source_country: string }) => {
+          if ((a.language || '').toLowerCase() === 'english') return true;
+          if (ENGLISH_COUNTRIES.has(a.source_country)) return true;
+          // Check title: only basic ASCII letters, no accented/non-Latin chars
+          const asciiRatio = a.title.replace(/[^a-zA-Z]/g, '').length / Math.max(1, a.title.replace(/\s/g, '').length);
+          return asciiRatio > 0.85;
+        };
         articles.sort((a, b) => {
-          const aEng = (a.language || "").toLowerCase() === "english" ? 0 : 1;
-          const bEng = (b.language || "").toLowerCase() === "english" ? 0 : 1;
+          const aEng = isLikelyEnglish(a) ? 0 : 1;
+          const bEng = isLikelyEnglish(b) ? 0 : 1;
           return aEng - bEng;
         });
         const sources: NewsSource[] = articles.map((a) => ({
@@ -530,9 +515,16 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
 
       {/* Bottom actions */}
       <div className="flex items-center gap-2 px-5 py-3 border-t border-white/[0.04] bg-surface-50/50">
-        <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-accent/80 hover:bg-accent text-white text-xs font-display font-semibold transition-colors shadow-lg shadow-accent/20">
+        <button
+          onClick={() => onToggleWatch?.(zone.country)}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-display font-semibold transition-colors shadow-lg ${
+            isWatching
+              ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 shadow-emerald-500/10"
+              : "bg-accent/80 hover:bg-accent text-white shadow-accent/20"
+          }`}
+        >
           <BookmarkPlus className="w-4 h-4" />
-          Watch Zone
+          {isWatching ? "Watching" : "Watch Zone"}
         </button>
         <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-300/50 hover:bg-surface-300/80 text-muted-light text-xs font-display font-medium transition-colors border border-white/[0.06]">
           <Share2 className="w-4 h-4" />
