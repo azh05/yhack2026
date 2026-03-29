@@ -49,6 +49,98 @@ export interface ConflictZone {
   events: ConflictEvent[];
 }
 
+// Humanitarian aid / fundraising URLs mapped by zone ID
+const DONATE_URLS: Record<string, string> = {
+  'gaza-1': 'https://www.unrwa.org/donate',
+  'sudan-1': 'https://donate.unhcr.org/int/en/sudan-emergency',
+  'ukraine-1': 'https://donate.unhcr.org/int/en/ukraine-emergency',
+  'myanmar-1': 'https://www.unicef.org/myanmar/donate',
+  'sahel-1': 'https://www.rescue.org/topic/sahel-crisis',
+  'drc-1': 'https://www.doctorswithoutborders.org/what-we-do/countries/democratic-republic-congo',
+  'ethiopia-1': 'https://www.wfp.org/emergencies/ethiopia-emergency',
+  'yemen-1': 'https://www.savethechildren.org/us/where-we-work/yemen',
+  'somalia-1': 'https://www.rescue.org/country/somalia',
+  'syria-1': 'https://www.doctorswithoutborders.org/what-we-do/countries/syria',
+  'haiti-1': 'https://www.unicef.org/haiti/donate',
+  'iraq-1': 'https://donate.unhcr.org/int/en/iraq-emergency',
+  'mexico-1': 'https://www.icrc.org/en/where-we-work/americas/mexico',
+  'pakistan-1': 'https://www.unicef.org/pakistan/donate',
+  'colombia-1': 'https://www.rescue.org/country/colombia',
+  'lebanon-1': 'https://www.unicef.org/lebanon/donate',
+  'nigeria-1': 'https://www.wfp.org/emergencies/nigeria-emergency',
+};
+
+export function getDonateUrl(zoneId: string): string {
+  return DONATE_URLS[zoneId] || 'https://donate.unhcr.org';
+}
+
+export type TravelRiskLevel = 'do-not-travel' | 'avoid' | 'reconsider' | 'caution';
+
+export interface TravelAdvisory {
+  level: TravelRiskLevel;
+  label: string;
+  color: string;
+  summary: string;
+  tips: string[];
+}
+
+export function getTravelAdvisory(zone: ConflictZone): TravelAdvisory {
+  if (zone.severity >= 8) {
+    return {
+      level: 'do-not-travel',
+      label: 'DO NOT TRAVEL',
+      color: '#dc2626',
+      summary: `Active armed conflict in ${zone.country}. Extreme risk of death, injury, or kidnapping. All foreign nationals are urged to evacuate immediately.`,
+      tips: [
+        'No commercial flights or safe overland routes may be available',
+        'Embassy services are likely suspended or severely limited',
+        'Neighboring countries may also be affected — check border status',
+        `Avoid ${zone.country} and a 200km+ buffer zone around conflict areas`,
+      ],
+    };
+  }
+  if (zone.severity >= 6) {
+    return {
+      level: 'avoid',
+      label: 'AVOID ALL TRAVEL',
+      color: '#f97316',
+      summary: `Serious security threats in ${zone.country}. High risk of armed violence, kidnapping, and civil unrest. Only essential travel with security arrangements.`,
+      tips: [
+        'Register with your embassy before traveling to the broader region',
+        'Avoid overland travel — use direct flights to/from major cities only',
+        'Secure comprehensive travel and medical evacuation insurance',
+        'Monitor local news daily and have an exit plan ready at all times',
+      ],
+    };
+  }
+  if (zone.severity >= 4) {
+    return {
+      level: 'reconsider',
+      label: 'RECONSIDER TRAVEL',
+      color: '#facc15',
+      summary: `Elevated security risks in parts of ${zone.country}. Localized violence and instability may affect travel plans. Exercise heightened caution.`,
+      tips: [
+        'Avoid areas near the conflict zone and border regions',
+        'Travel in groups and use reputable local guides or tour operators',
+        'Keep copies of all documents and share your itinerary with contacts',
+        'Avoid protests, demonstrations, and large public gatherings',
+      ],
+    };
+  }
+  return {
+    level: 'caution',
+    label: 'EXERCISE CAUTION',
+    color: '#22c55e',
+    summary: `Low-level instability in parts of ${zone.country}. Most areas are safe for travel but remain aware of localized risks.`,
+    tips: [
+      'Stay informed about the security situation in your specific area',
+      'Avoid traveling at night in rural or less-patrolled areas',
+      'Keep emergency contacts and embassy numbers readily available',
+      'Respect local customs and maintain a low profile',
+    ],
+  };
+}
+
 export const SEVERITY_COLORS: Record<string, string> = {
   "1": "#facc15",
   "2": "#facc15",

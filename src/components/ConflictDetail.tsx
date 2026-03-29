@@ -24,14 +24,23 @@ import {
   Shield,
   Activity,
   Loader2,
+  Plane,
+  HandHeart,
+  CircleAlert,
+  CircleCheck,
+  TriangleAlert,
+  OctagonAlert,
 } from "lucide-react";
 import {
   getSeverityColor,
   getSeverityLabel,
+  getDonateUrl,
+  getTravelAdvisory,
   type ConflictZone,
   type NewsSource,
   type AIAnalysis,
 } from "@/data/conflicts";
+import type { TravelAdvisory as TravelAdvisoryType } from "@/data/conflicts";
 
 interface ConflictDetailProps {
   zone: ConflictZone;
@@ -116,6 +125,55 @@ function AnalysisSection({
         )}
       </button>
       {open && <div className="px-5 pb-4">{children}</div>}
+    </div>
+  );
+}
+
+const RISK_ICONS: Record<string, React.ReactNode> = {
+  'do-not-travel': <OctagonAlert className="w-4 h-4" />,
+  'avoid': <TriangleAlert className="w-4 h-4" />,
+  'reconsider': <CircleAlert className="w-4 h-4" />,
+  'caution': <CircleCheck className="w-4 h-4" />,
+};
+
+function TravelAdvisoryCard({ zone }: { zone: ConflictZone }) {
+  const advisory = getTravelAdvisory(zone);
+  return (
+    <div className="space-y-3">
+      {/* Risk level badge */}
+      <div
+        className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+        style={{
+          borderColor: advisory.color + '30',
+          backgroundColor: advisory.color + '0a',
+          color: advisory.color,
+        }}
+      >
+        {RISK_ICONS[advisory.level]}
+        <span className="text-xs font-display font-bold tracking-wide">
+          {advisory.label}
+        </span>
+      </div>
+
+      {/* Summary */}
+      <p className="text-[13px] leading-relaxed text-white/70 font-body">
+        {advisory.summary}
+      </p>
+
+      {/* Tips for travelers */}
+      <div className="space-y-1.5">
+        <span className="text-2xs font-mono text-muted/50 uppercase tracking-wider">
+          Advice for travelers
+        </span>
+        <ul className="space-y-1.5">
+          {advisory.tips.map((tip, i) => (
+            <li key={i} className="flex items-start gap-2 text-2xs text-white/55 leading-relaxed">
+              <span className="mt-1 w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: advisory.color + '80' }} />
+              {tip}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -453,10 +511,47 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
           )}
         </AnalysisSection>
 
+        {/* Travel Advisory */}
+        <AnalysisSection
+          icon={<Plane className="w-3.5 h-3.5 text-accent-glow/50" />}
+          title="Travel Advisory"
+          defaultOpen={true}
+        >
+          <TravelAdvisoryCard zone={zone} />
+        </AnalysisSection>
+
+        {/* Donate / Take Action */}
+        <div className="px-5 py-4 border-b border-white/[0.04]">
+          <div className="rounded-xl overflow-hidden border border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] to-transparent">
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <HandHeart className="w-4 h-4 text-rose-400" />
+                <span className="text-xs font-display font-semibold text-white/90">Take Action</span>
+              </div>
+              <p className="text-2xs text-white/50 leading-relaxed mb-3">
+                People in {zone.country} need urgent humanitarian aid. Donate to verified organizations providing relief on the ground.
+              </p>
+              <a
+                href={getDonateUrl(zone.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg bg-rose-500/80 hover:bg-rose-500 text-white text-xs font-display font-semibold transition-colors shadow-lg shadow-rose-500/20"
+              >
+                <Heart className="w-4 h-4" />
+                Donate to Help {zone.country}
+                <ExternalLink className="w-3 h-3 opacity-60" />
+              </a>
+              <p className="text-center text-2xs text-muted/30 font-mono mt-2">
+                Opens verified humanitarian organization page
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Data Attribution */}
         <div className="px-5 py-2">
           <p className="text-2xs text-muted/30 font-mono">
-            Generated from ACLED + GDELT data sources · Powered by Gemini AI
+            Generated from ACLED + GDELT data sources · Powered by Claude AI
           </p>
         </div>
 
