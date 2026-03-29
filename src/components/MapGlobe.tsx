@@ -7,7 +7,7 @@ import {
   getSeverityColor,
   type ConflictZone,
 } from "@/data/conflicts";
-import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from "@/lib/useConflictEvents";
+import { type DBEvent, buildGeoJSONFromEvents } from "@/lib/useConflictEvents";
 import type { MapFilters } from "@/components/RightPanel";
 
 mapboxgl.accessToken =
@@ -437,7 +437,7 @@ export default function MapGlobe({
         filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
-          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 10, 5, 16, 8, 22, 10, 30],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 14, 5, 20, 8, 26, 10, 34],
           "circle-opacity": 0.15,
           "circle-blur": 1,
         },
@@ -450,7 +450,7 @@ export default function MapGlobe({
         filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 3, "#f59e0b", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
-          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 5, 5, 8, 8, 11, 10, 15],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 7, 5, 10, 8, 14, 10, 18],
           "circle-opacity": 0.9,
           "circle-stroke-width": 1.5,
           "circle-stroke-color": "rgba(255,255,255,0.25)",

@@ -114,7 +114,7 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
               className="w-full appearance-none px-3 py-2 rounded-lg bg-surface-200/80 border border-white/[0.06] text-xs text-white/80 outline-none focus:border-accent/30 transition-colors cursor-pointer"
             >
               {REGIONS.map((r) => (
-                <option key={r} value={r}>
+                <option key={r} value={r} className="bg-[#1a1f2e] text-white">
                   {r}
                 </option>
               ))}
