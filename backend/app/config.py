@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     acled_password: str = ""
     supabase_url: str = ""
     supabase_key: str = ""
+    gemini_api_key: str = ""
     frontend_url: str = "http://localhost:3000"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
