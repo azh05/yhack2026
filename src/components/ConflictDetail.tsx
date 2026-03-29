@@ -16,6 +16,8 @@ import {
   Newspaper,
   Share2,
   BookmarkPlus,
+  BookmarkCheck,
+  ClipboardCheck,
   AlertTriangle,
   Heart,
   Eye,
@@ -188,6 +190,8 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
   const [newsLoading, setNewsLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis>(zone.aiAnalysis);
   const [aiLoading, setAiLoading] = useState(false);
+  const [isWatching, setIsWatching] = useState(false);
+  const [shareMsg, setShareMsg] = useState('');
 
   useEffect(() => {
     if (zone.aiAnalysis.background) {
@@ -614,13 +618,33 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
 
       {/* Bottom actions */}
       <div className="flex items-center gap-2 px-5 py-3 border-t border-white/[0.04] bg-surface-50/50">
-        <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-accent/80 hover:bg-accent text-white text-xs font-display font-semibold transition-colors shadow-lg shadow-accent/20">
-          <BookmarkPlus className="w-4 h-4" />
-          Watch Zone
+        <button
+          onClick={() => setIsWatching(prev => !prev)}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-display font-semibold transition-colors shadow-lg ${
+            isWatching
+              ? 'bg-emerald-500/80 hover:bg-emerald-500 text-white shadow-emerald-500/20'
+              : 'bg-accent/80 hover:bg-accent text-white shadow-accent/20'
+          }`}
+        >
+          {isWatching ? <BookmarkCheck className="w-4 h-4" /> : <BookmarkPlus className="w-4 h-4" />}
+          {isWatching ? 'Watching' : 'Watch Zone'}
         </button>
-        <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-300/50 hover:bg-surface-300/80 text-muted-light text-xs font-display font-medium transition-colors border border-white/[0.06]">
-          <Share2 className="w-4 h-4" />
-          Share
+        <button
+          onClick={async () => {
+            const url = `${window.location.origin}/app?zone=${encodeURIComponent(zone.id)}`;
+            const text = `${zone.name} — ${zone.country} | Severity ${zone.severity}/10 | ConflictLens`;
+            if (navigator.share) {
+              try { await navigator.share({ title: zone.name, text, url }); } catch {}
+            } else {
+              await navigator.clipboard.writeText(url);
+              setShareMsg('Copied!');
+              setTimeout(() => setShareMsg(''), 2000);
+            }
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-300/50 hover:bg-surface-300/80 text-muted-light text-xs font-display font-medium transition-colors border border-white/[0.06]"
+        >
+          {shareMsg ? <ClipboardCheck className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
+          {shareMsg || 'Share'}
         </button>
       </div>
     </div>

@@ -129,14 +129,20 @@ export default function Navbar({ searchQuery = '', onSearchChange, conflictZones
             {searchOpen ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
           </button>
 
-          <button className="relative flex items-center justify-center w-9 h-9 rounded-lg text-muted-light hover:text-white hover:bg-surface-300/50 transition-all">
+          <button
+            onClick={() => alert('Notifications coming soon — real-time conflict alerts will be available in the next release.')}
+            className="relative flex items-center justify-center w-9 h-9 rounded-lg text-muted-light hover:text-white hover:bg-surface-300/50 transition-all"
+          >
             <Bell className="w-4 h-4" />
             <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-severity-high border border-surface" />
           </button>
 
           <div className="w-px h-6 bg-white/[0.06] mx-1" />
 
-          <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-orange-300/90 hover:bg-orange-500/10 transition-all border border-orange-400/20 hover:border-orange-400/40">
+          <button
+            onClick={() => alert('Authentication is not yet available. ConflictLens is in beta — sign-in will be enabled soon.')}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-orange-300/90 hover:bg-orange-500/10 transition-all border border-orange-400/20 hover:border-orange-400/40"
+          >
             <Zap className="w-3.5 h-3.5" />
             <span className="hidden sm:inline text-xs">Sign In</span>
           </button>

@@ -146,7 +146,7 @@ export default function ChatPanel({ isOpen, onToggle, onMapCommand }: ChatPanelP
           </button>
         </div>
         <p className="text-center text-2xs text-muted/30 mt-2 font-mono">
-          Powered by Gemini AI · ACLED data
+          Powered by Claude AI · ACLED data
         </p>
       </div>
     </aside>
