@@ -211,12 +211,10 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
           const asciiRatio = a.title.replace(/[^a-zA-Z]/g, '').length / Math.max(1, a.title.replace(/\s/g, '').length);
           return asciiRatio > 0.85;
         };
-        articles.sort((a, b) => {
-          const aEng = isLikelyEnglish(a) ? 0 : 1;
-          const bEng = isLikelyEnglish(b) ? 0 : 1;
-          return aEng - bEng;
-        });
-        const sources: NewsSource[] = articles.map((a) => ({
+        // Filter to English-only, then sort English-country sources first
+        const englishArticles = articles.filter(a => isLikelyEnglish(a));
+        const finalArticles = englishArticles.length > 0 ? englishArticles : articles.slice(0, 5);
+        const sources: NewsSource[] = finalArticles.map((a) => ({
           headline: a.title,
           url: a.url,
           outlet: a.source_country || "Unknown",
