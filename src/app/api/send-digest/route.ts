@@ -77,7 +77,7 @@ async function generateDigestEmail(
     year: "numeric",
   });
 
-  const prompt = `You are a conflict intelligence analyst. Generate a weekly conflict digest email as HTML.
+  const prompt = `You are a conflict intelligence analyst. Generate a weekly conflict digest email as HTML using a TIMELINE design.
 
 The user is watching: ${watchedCountries.join(", ")}
 
@@ -87,55 +87,93 @@ ${newsContext}
 
 Generate ONLY the inner HTML (no <html>, <head>, or <body> tags). I will wrap it. Follow this EXACT structure — output ONLY what goes inside the wrapper:
 
-<!-- Header with subtle crosshatch background pattern -->
-<div style="position:relative; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:24px; margin-bottom:28px; background-image:url('data:image/svg+xml,<svg width=\\"40\\" height=\\"40\\" xmlns=\\"http://www.w3.org/2000/svg\\"><path d=\\"M0 0l40 40M40 0L0 40\\" stroke=\\"rgba(255,255,255,0.02)\\" stroke-width=\\"1\\"/></svg>'); background-size:40px 40px;">
-  <div style="font-size:11px; letter-spacing:3px; color:rgba(255,255,255,0.25); text-transform:uppercase; font-weight:600;">ConflictLens Intelligence</div>
+The design uses a single table with a continuous red border-left on the left column to create a timeline effect. NO position:absolute — email clients don't support it. Use border-left on td cells for the vertical line.
+
+<!-- Header (OUTSIDE the timeline table) -->
+<div style="padding-bottom:28px; margin-bottom:0;">
+  <div style="font-size:11px; letter-spacing:3px; color:rgba(255,255,255,0.25); text-transform:uppercase; font-weight:600;">&#10084; Love Over War</div>
   <h1 style="font-size:26px; font-weight:700; color:#ffffff; margin:10px 0 0; letter-spacing:-0.5px;">Weekly Conflict Digest</h1>
   <p style="font-size:13px; color:rgba(255,255,255,0.3); margin:8px 0 0;">${today} &middot; ${watchedCountries.length} countries monitored</p>
 </div>
 
-<!-- Then for EACH COUNTRY, output a country section like this: -->
-<div style="margin-bottom:24px;">
-  <!-- Country header with severity indicator -->
-  <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.04);">
-    <div style="width:10px; height:10px; border-radius:50%; background:[#ef4444 for high severity, #f97316 for moderate, #3b82f6 for low]; box-shadow:0 0 8px [same color with 40% opacity];"></div>
-    <span style="font-size:15px; font-weight:700; color:#ffffff; letter-spacing:0.5px;">COUNTRY NAME</span>
-    <span style="font-size:11px; color:rgba(255,255,255,0.25); font-weight:500; margin-left:auto;">[ESCALATING / PERSISTENT / DE-ESCALATING]</span>
-  </div>
+<!-- ONE single table for the entire timeline. The left td has border-left:2px solid #dc2626 on EVERY row to create the continuous vertical line. -->
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
 
-  <!-- 1-2 sentence AI analysis for this country -->
-  <p style="font-size:13px; color:rgba(255,255,255,0.55); line-height:1.6; margin:0 0 12px; padding-left:20px; border-left:2px solid rgba(255,255,255,0.06);">Brief AI analysis of the situation in this country based on the headlines.</p>
+  <!-- For EACH COUNTRY: -->
 
-  <!-- Story cards for this country -->
-  <div style="background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.05); border-radius:10px; padding:14px 16px; margin-bottom:8px;">
-    <p style="font-size:13px; color:rgba(255,255,255,0.75); line-height:1.5; margin:0 0 6px;">Headline summary text</p>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <span style="font-size:11px; color:rgba(255,255,255,0.3);">Source Name</span>
-      <span style="font-size:11px; color:rgba(255,255,255,0.15);">&middot;</span>
-      <a href="[url]" style="font-size:11px; color:#60a5fa; text-decoration:none;">Read article &rarr;</a>
-    </div>
-  </div>
-  <!-- Repeat for each story in this country -->
-</div>
-<!-- Repeat for each country -->
+  <!-- Country header row -->
+  <tr>
+    <td width="2" style="border-left:2px solid #dc2626; padding:0; width:2px;"></td>
+    <td style="padding:20px 0 4px 18px;">
+      <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#dc2626; vertical-align:middle; margin-right:10px;"></span>
+      <span style="font-size:16px; font-weight:700; color:#ffffff; letter-spacing:0.5px; vertical-align:middle;">COUNTRY NAME</span>
+      <span style="font-size:11px; color:rgba(255,255,255,0.3); font-weight:500; margin-left:10px; vertical-align:middle;">[ESCALATING / PERSISTENT / DE-ESCALATING]</span>
+    </td>
+  </tr>
 
-<!-- Divider with dot pattern -->
-<div style="height:1px; background-image:url('data:image/svg+xml,<svg width=\\"8\\" height=\\"1\\" xmlns=\\"http://www.w3.org/2000/svg\\"><circle cx=\\"4\\" cy=\\"0.5\\" r=\\"0.5\\" fill=\\"rgba(255,255,255,0.15)\\"/></svg>'); background-repeat:repeat-x; margin:28px 0;"></div>
+  <!-- AI analysis row -->
+  <tr>
+    <td style="border-left:2px solid #dc2626; padding:0; width:2px;"></td>
+    <td style="padding:6px 0 10px 18px;">
+      <p style="font-size:13px; color:rgba(255,255,255,0.5); line-height:1.6; margin:0;">Brief AI analysis of the situation.</p>
+    </td>
+  </tr>
 
-<!-- Global outlook -->
-<p style="font-size:14px; color:rgba(255,255,255,0.5); line-height:1.6; margin:0 0 24px; text-align:center; font-style:italic;">[1-2 sentence global outlook across all watched conflicts]</p>
+  <!-- For EACH STORY: a row with a small horizontal branch -->
+  <tr>
+    <td style="border-left:2px solid #dc2626; padding:0; width:2px;"></td>
+    <td style="padding:6px 0 6px 0;">
+      <!-- Horizontal branch line + content -->
+      <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="width:18px; padding:0; vertical-align:top; padding-top:7px;">
+            <div style="width:18px; height:2px; background:#dc2626;"></div>
+          </td>
+          <td style="padding:0 0 0 6px; vertical-align:top;">
+            <p style="font-size:13px; color:rgba(255,255,255,0.75); line-height:1.4; margin:0 0 3px;">Headline text</p>
+            <span style="font-size:11px; color:rgba(255,255,255,0.3);">Source</span>
+            <span style="font-size:11px; color:rgba(255,255,255,0.15);"> &middot; </span>
+            <a href="[url]" style="font-size:11px; color:#f87171; text-decoration:none;">Read &rarr;</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <!-- Repeat story rows -->
+
+  <!-- Spacer row between countries -->
+  <tr>
+    <td style="border-left:2px solid #dc2626; padding:0; width:2px;"></td>
+    <td style="padding:8px 0;"></td>
+  </tr>
+
+  <!-- Repeat for each country -->
+
+  <!-- Final row: global outlook (no more border-left after this) -->
+  <tr>
+    <td style="padding:0; width:2px;"></td>
+    <td style="padding:12px 0 0 18px;">
+      <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:rgba(220,38,38,0.3); border:2px solid #dc2626; vertical-align:middle; margin-right:10px;"></span>
+      <span style="font-size:13px; color:rgba(255,255,255,0.4); font-style:italic; vertical-align:middle;">[1-2 sentence global outlook]</span>
+    </td>
+  </tr>
+</table>
 
 <!-- Footer -->
-<div style="text-align:center; padding-top:16px;">
-  <p style="font-size:11px; color:rgba(255,255,255,0.15); margin:0;">Generated by ConflictLens &middot; ACLED + GDELT data &middot; Powered by Gemini AI</p>
+<div style="text-align:center; padding-top:28px; margin-top:20px; border-top:1px solid rgba(255,255,255,0.04);">
+  <p style="font-size:11px; color:rgba(255,255,255,0.15); margin:0;">&#10084; Love Over War &middot; ACLED + GDELT data &middot; Powered by Gemini AI</p>
 </div>
 
 Rules:
-- GROUP stories by country — all stories for one country go under that country's section
-- Order countries by severity (most severe first)
-- For each country: severity dot + country name + trend label + 1-2 line AI summary + story cards
-- Use #ef4444 for high severity (active war), #f97316 for moderate, #3b82f6 for lower/watchlist
-- Include real article URLs as "Read article →" links
+- Use ONE single <table> for the entire timeline — do NOT use multiple tables
+- EVERY row except the last must have border-left:2px solid #dc2626 on the first td — this creates the continuous vertical red line
+- The last row (global outlook) has NO border-left so the line terminates
+- Country headers: include a 12px red circle dot inline before the country name
+- Each story: use a nested table with a horizontal red line (18px wide, 2px tall div) branching from the left border to the content
+- Do NOT use position:absolute or position:relative — these do not work in email clients
+- GROUP stories by country, order countries by severity (most severe first)
+- Link color: #f87171
+- Include real article URLs as "Read →" links
 - Use the EXACT source name from the RSS data
 - Output ONLY the HTML content, no markdown fences or explanation`;
 
@@ -147,6 +185,16 @@ Rules:
     ${inner}
   </div>
 </div>`;
+}
+
+export async function GET() {
+  // Vercel cron jobs hit GET — delegate to the same logic with "daily" frequency
+  const fakeReq = new NextRequest("http://localhost/api/send-digest", {
+    method: "POST",
+    body: JSON.stringify({ frequency: "daily" }),
+    headers: { "Content-Type": "application/json" },
+  });
+  return POST(fakeReq);
 }
 
 export async function POST(req: NextRequest) {
@@ -228,9 +276,9 @@ export async function POST(req: NextRequest) {
       );
 
       return resend.emails.send({
-        from: "War Digest <onboarding@resend.dev>",
+        from: "Love Over War <onboarding@resend.dev>",
         to: sub.email,
-        subject: `War Weekly Digest — ${dateRange}${watchedCountries.length > 0 ? ` · ${watchedCountries.slice(0, 2).join(", ")}` : ""}`,
+        subject: `❤ Love Over War Digest — ${dateRange}${watchedCountries.length > 0 ? ` · ${watchedCountries.slice(0, 2).join(", ")}` : ""}`,
         html: htmlContent,
       });
     }),

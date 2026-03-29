@@ -60,7 +60,7 @@ export default function AppPage() {
     severityRange: [1, 10],
     overlays: {
       heatmap: true,
-      clusters: false,
+      clusters: true,
       borders: false,
     },
   });

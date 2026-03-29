@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Globe2,
+  Heart,
   Bell,
   Search,
   Zap,
@@ -117,11 +117,11 @@ export default function Navbar({
         {/* Left: Logo */}
         <a href="/" className="flex items-center gap-3 group">
           <div className="relative flex items-center justify-center w-8 h-8">
-            <Globe2
-              className="w-6 h-6 text-orange-400 group-hover:text-orange-300 transition-colors"
+            <Heart
+              className="w-6 h-6 text-red-400 group-hover:text-red-300 transition-colors fill-red-400 group-hover:fill-red-300"
               strokeWidth={1.5}
             />
-            <div className="absolute inset-0 rounded-full bg-orange-400/10 animate-pulse-slow" />
+            <div className="absolute inset-0 rounded-full bg-red-400/10 animate-pulse-slow" />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="font-display text-[15px] font-bold tracking-tight text-white">

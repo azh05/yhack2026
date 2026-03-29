@@ -820,7 +820,7 @@ export default function MapGlobe({
     }
 
     // Clusters
-    ["cluster-glow", "clusters", "cluster-count"].forEach((layerId) => {
+    ["cluster-glow", "clusters", "cluster-count", "db-clusters", "db-cluster-count"].forEach((layerId) => {
       if (m.getLayer(layerId)) {
         m.setLayoutProperty(
           layerId,

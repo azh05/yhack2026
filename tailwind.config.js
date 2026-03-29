@@ -91,6 +91,11 @@ module.exports = {
           '0%': { transform: 'translateY(-100%)' },
           '100%': { transform: 'translateY(100%)' },
         },
+        flipIn: {
+          '0%': { opacity: '0', transform: 'rotateX(-90deg) scale(0.8)' },
+          '60%': { opacity: '1', transform: 'rotateX(10deg) scale(1.02)' },
+          '100%': { opacity: '1', transform: 'rotateX(0deg) scale(1)' },
+        },
       },
       backgroundImage: {
         'grid-pattern': 'linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px)',

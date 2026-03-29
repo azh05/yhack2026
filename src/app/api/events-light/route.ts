@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     .from("conflict_events")
     .select(
       "id, event_date, event_type, country, admin1, latitude, longitude, fatalities, severity_score",
+      { count: "exact" },
     )
     .order("event_date", { ascending: false })
     .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -33,11 +34,18 @@ export async function GET(req: NextRequest) {
     query = query.in("event_type", CONFLICT_TYPES);
   }
 
-  const { data, error } = await query;
+  const { data, error, count: totalCount } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ events: data || [], count: data?.length || 0 });
+  const countries = new Set((data || []).map((e) => e.country));
+
+  return NextResponse.json({
+    events: data || [],
+    count: data?.length || 0,
+    total: totalCount ?? data?.length ?? 0,
+    total_countries: countries.size,
+  });
 }

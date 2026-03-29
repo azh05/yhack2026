@@ -1,15 +1,17 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
-  Globe2,
+  Heart,
   ArrowRight,
   Shield,
   Radio,
   BarChart3,
   Crosshair,
   Eye,
+  Globe2,
 } from "lucide-react";
 
 const CobeGlobe = dynamic(() => import("@/components/ui/cobe-globe"), {
@@ -49,8 +51,55 @@ const FEATURES = [
   },
 ];
 
+function AnimatedCount({ target }: { target: number }) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (target <= 0) return;
+    const duration = 1800;
+    const startTime = performance.now();
+
+    function step(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(eased * target));
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }, [target]);
+
+  return (
+    <span ref={ref} className="inline-flex overflow-hidden">
+      {String(display)
+        .split("")
+        .map((digit, i) => (
+          <span
+            key={i}
+            className="inline-block animate-[flipIn_0.4s_ease-out]"
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
+            {digit}
+          </span>
+        ))}
+    </span>
+  );
+}
+
 export default function LandingPage() {
   const router = useRouter();
+  const [conflictCount, setConflictCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/events-light?page=0&page_size=5000")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.total_countries) setConflictCount(data.total_countries);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#08090d] text-white font-body">
@@ -59,10 +108,26 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto w-full px-6 lg:px-12 grid lg:grid-cols-2 gap-12 items-center">
           {/* Left — Copy */}
           <div className="relative z-10 py-20 lg:py-0">
-            <div className="flex items-center gap-2 mb-8">
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <div className="flex items-center gap-3 mb-8">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                </span>
+                <span className="text-[10px] font-mono font-semibold text-red-400 tracking-wider uppercase">
+                  Live
+                </span>
+              </div>
               <span className="text-xs font-mono text-white/40 tracking-widest uppercase">
-                Monitoring 46 active conflicts
+                Tracking{" "}
+                <span className="text-white/70 font-semibold tabular-nums">
+                  {conflictCount != null ? (
+                    <AnimatedCount target={conflictCount} />
+                  ) : (
+                    "..."
+                  )}
+                </span>{" "}
+                active conflicts
               </span>
             </div>
 
@@ -157,7 +222,7 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.04] py-8 px-6">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-white/30">
-            <Globe2 className="w-4 h-4" />
+            <Heart className="w-4 h-4 text-red-500/60" />
             <span className="text-xs font-medium">Love Over War</span>
           </div>
           <p className="text-xs text-white/15 font-mono">YHack 2026</p>
