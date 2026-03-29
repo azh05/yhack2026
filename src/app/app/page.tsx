@@ -39,7 +39,9 @@ const MapGlobe = dynamic(() => import("@/components/MapGlobe"), {
 });
 
 export default function AppPage() {
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 640 : true,
+  );
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [selectedConflict, setSelectedConflict] = useState<ConflictZone | null>(
@@ -225,28 +227,28 @@ export default function AppPage() {
       {!leftPanelOpen && (
         <button
           onClick={() => setLeftPanelOpen(true)}
-          className="fixed left-4 top-20 z-20 flex items-center gap-2 px-3 py-2 rounded-lg glass glass-hover transition-all"
+          className="fixed left-3 sm:left-4 top-[4.5rem] sm:top-20 z-20 flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-lg glass glass-hover transition-all"
         >
           <PanelLeft className="w-4 h-4 text-accent-glow/70" />
-          <span className="text-xs text-white/70">Conflicts</span>
+          <span className="text-xs text-white/70 hidden sm:inline">Conflicts</span>
         </button>
       )}
 
       {!rightPanelOpen && !chatOpen && (
-        <div className="fixed right-4 top-44 z-20 flex flex-col gap-2">
+        <div className="fixed right-3 sm:right-4 top-[4.5rem] sm:top-44 z-20 flex flex-row sm:flex-col gap-2">
           <button
             onClick={() => setRightPanelOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg glass glass-hover transition-all"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-lg glass glass-hover transition-all"
           >
             <Layers className="w-4 h-4 text-accent-glow/70" />
-            <span className="text-xs text-white/70">Layers</span>
+            <span className="text-xs text-white/70 hidden sm:inline">Layers</span>
           </button>
           <button
             onClick={() => setChatOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg glass glass-hover transition-all"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-lg glass glass-hover transition-all"
           >
             <Bot className="w-4 h-4 text-accent-glow/70" />
-            <span className="text-xs text-white/70">Mars</span>
+            <span className="text-xs text-white/70 hidden sm:inline">Mars</span>
           </button>
         </div>
       )}

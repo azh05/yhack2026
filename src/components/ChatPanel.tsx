@@ -139,7 +139,7 @@ export default function ChatPanel({
   if (!isOpen) return null;
 
   return (
-    <aside className="fixed right-0 top-14 bottom-[88px] w-[380px] z-30 flex flex-col glass border-l border-white/[0.04] animate-slide-up">
+    <aside className="fixed right-0 top-14 bottom-[88px] w-full sm:w-[380px] z-30 flex flex-col glass border-l border-white/[0.04] animate-slide-up">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">

@@ -262,9 +262,9 @@ export default function TimelineBar({
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between px-4 py-2">
+      <div className="flex items-center justify-between px-2 sm:px-4 py-2 gap-2">
         {/* Left: Playback */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={stepBack}
             className="p-1.5 rounded-md text-muted hover:text-white hover:bg-surface-300/50 transition-colors"
@@ -290,8 +290,8 @@ export default function TimelineBar({
             <SkipForward className="w-3.5 h-3.5" />
           </button>
 
-          {/* Speed */}
-          <div className="flex items-center ml-2 gap-0.5">
+          {/* Speed — hide on very small screens */}
+          <div className="hidden sm:flex items-center ml-2 gap-0.5">
             {SPEED_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -309,31 +309,30 @@ export default function TimelineBar({
         </div>
 
         {/* Center: Current date + event count */}
-        <div className="flex items-center gap-2">
-          <Calendar className="w-3.5 h-3.5 text-muted/40" />
-          <span className="text-xs font-mono text-white/70">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <Calendar className="w-3.5 h-3.5 text-muted/40 shrink-0 hidden sm:block" />
+          <span className="text-2xs sm:text-xs font-mono text-white/70 truncate">
             {currentDate.toLocaleDateString("en-US", {
-              weekday: "short",
               month: "short",
               day: "numeric",
               year: "numeric",
             })}
           </span>
           {eventCount !== undefined && (
-            <span className="px-1.5 py-0.5 rounded bg-severity-high/10 text-severity-high/80 text-2xs font-mono border border-severity-high/20">
-              {eventCount} events
+            <span className="px-1.5 py-0.5 rounded bg-severity-high/10 text-severity-high/80 text-2xs font-mono border border-severity-high/20 shrink-0">
+              {eventCount}
             </span>
           )}
           <button
             onClick={goToNow}
-            className="px-2 py-0.5 rounded-md bg-emerald-400/10 text-emerald-400/80 text-2xs font-mono border border-emerald-400/20 hover:bg-emerald-400/20 transition-colors ml-1"
+            className="px-2 py-0.5 rounded-md bg-emerald-400/10 text-emerald-400/80 text-2xs font-mono border border-emerald-400/20 hover:bg-emerald-400/20 transition-colors shrink-0"
           >
             NOW
           </button>
         </div>
 
-        {/* Right: empty spacer for layout balance */}
-        <div className="w-[120px]" />
+        {/* Right: empty spacer for layout balance — hidden on mobile */}
+        <div className="hidden sm:block w-[120px]" />
       </div>
     </div>
   );

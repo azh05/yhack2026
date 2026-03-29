@@ -93,7 +93,7 @@ export default function RightPanel({
   if (!isOpen) return null;
 
   return (
-    <aside className="fixed right-0 top-14 bottom-[88px] w-[260px] z-30 flex flex-col glass border-l border-white/[0.04] animate-slide-left overflow-hidden">
+    <aside className="fixed right-0 top-14 bottom-[88px] w-full sm:w-[260px] z-30 flex flex-col glass border-l border-white/[0.04] animate-slide-left overflow-hidden">
       {/* Top accent glow */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-glow/30 to-transparent animate-pulse-slow" />
       {/* Header */}

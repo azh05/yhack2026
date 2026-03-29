@@ -283,7 +283,7 @@ export default function ConflictDetail({
   }, [zone.id, zone.country, timelineDate]);
 
   return (
-    <div className="fixed left-[340px] top-14 bottom-[88px] w-[400px] z-30 flex flex-col glass border-r border-white/[0.04] animate-slide-up overflow-hidden">
+    <div className="fixed left-0 sm:left-[340px] top-14 bottom-[88px] w-full sm:w-[400px] z-30 flex flex-col glass border-r border-white/[0.04] animate-slide-up overflow-hidden">
       {/* Header with severity accent */}
       <div
         className="relative px-5 pt-5 pb-4 border-b border-white/[0.04] overflow-hidden"

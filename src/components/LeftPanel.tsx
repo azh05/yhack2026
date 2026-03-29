@@ -129,7 +129,7 @@ export default function LeftPanel({
   if (!isOpen) return null;
 
   return (
-    <aside className="fixed left-0 top-14 bottom-[88px] w-[340px] z-30 flex flex-col glass border-r border-white/[0.04] animate-slide-up">
+    <aside className="fixed left-0 top-14 bottom-[88px] w-full sm:w-[340px] z-30 flex flex-col glass border-r border-white/[0.04] animate-slide-up">
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-severity-moderate" />
