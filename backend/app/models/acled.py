@@ -9,18 +9,18 @@ class ACLEDEvent(BaseModel):
     event_id_cnty: str
     event_date: str
     event_type: str
-    sub_event_type: str = ""
+    sub_event_type: str | None = ""
     fatalities: int = 0
     latitude: float = 0.0
     longitude: float = 0.0
     country: str = ""
-    admin1: str = ""
-    admin2: str = ""
-    notes: str = ""
-    source: str = ""
-    inter1: str = ""
-    inter2: str = ""
-    civilian_targeting: str = ""
+    admin1: str | None = ""
+    admin2: str | None = ""
+    notes: str | None = ""
+    source: str | None = ""
+    inter1: str | None = ""
+    inter2: str | None = ""
+    civilian_targeting: str | None = ""
 
     @model_validator(mode="before")
     @classmethod

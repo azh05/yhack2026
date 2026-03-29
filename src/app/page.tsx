@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Navbar from "@/components/Navbar";
 import LeftPanel from "@/components/LeftPanel";
@@ -36,9 +36,10 @@ export default function Home() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [selectedConflict, setSelectedConflict] =
-    useState<ConflictZone | null>(null);
-  const [timelineDate, setTimelineDate] = useState(new Date());
+  const [selectedConflict, setSelectedConflict] = useState<ConflictZone | null>(
+    null,
+  );
+  const [timelineDate, setTimelineDate] = useState<Date | null>(null);
   const [conflictZones, setConflictZones] = useState<ConflictZone[]>([]);
   const [zonesLoading, setZonesLoading] = useState(false);
   const { events: dbEvents } = useConflictEvents();
@@ -56,15 +57,25 @@ export default function Home() {
     [],
   );
 
+  useEffect(() => {
+    setTimelineDate(new Date());
+  }, []);
+
+  const hasZonesRef = useRef(false);
+
   const fetchZones = useCallback(async () => {
-    setZonesLoading(true);
+    // Only show loading skeleton on the very first fetch (no data yet)
+    if (!hasZonesRef.current) setZonesLoading(true);
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
     try {
+      // Don't pass dates — the backend defaults to the ACLED data window
+      // that actually has data. The zone list shows all active conflicts;
+      // only map dots are time-filtered client-side.
       const res = await fetch(`${backendUrl}/api/conflict-zones`);
       if (!res.ok) throw new Error(`API responded ${res.status}`);
       const data = await res.json();
-      const zones: ConflictZone[] = data.map(
+      const incoming: ConflictZone[] = data.map(
         (
           item: Omit<ConflictZone, "aiAnalysis" | "newsSources" | "events">,
         ) => ({
@@ -80,7 +91,39 @@ export default function Home() {
           events: [],
         }),
       );
-      setConflictZones(zones);
+
+      // Merge: only update zones whose data actually changed so the list
+      // doesn't re-render every card on each timeline tick.
+      setConflictZones((prev) => {
+        if (prev.length === 0) {
+          hasZonesRef.current = true;
+          return incoming;
+        }
+
+        const prevMap = new Map(prev.map((z) => [z.id, z]));
+        let changed = prev.length !== incoming.length;
+
+        const merged = incoming.map((z) => {
+          const old = prevMap.get(z.id);
+          if (
+            old &&
+            old.severity === z.severity &&
+            old.eventCount === z.eventCount &&
+            old.fatalities30d === z.fatalities30d &&
+            old.trend === z.trend &&
+            old.latitude === z.latitude &&
+            old.longitude === z.longitude
+          ) {
+            return old; // same reference — React skips re-render for this item
+          }
+          changed = true;
+          return z;
+        });
+
+        // If every zone kept its old reference and length is the same,
+        // return the previous array to skip the re-render entirely.
+        return changed ? merged : prev;
+      });
     } catch (err) {
       console.error("[fetchZones]", err);
       setConflictZones([]);
@@ -89,9 +132,23 @@ export default function Home() {
     }
   }, []);
 
+  // Fetch zones once on mount — the list doesn't depend on the timeline date.
   useEffect(() => {
     fetchZones();
-  }, []);
+  }, [fetchZones]);
+
+  // Keep selectedConflict in sync when conflictZones refresh (e.g. timeline moves)
+  useEffect(() => {
+    if (!selectedConflict) return;
+    const updated = conflictZones.find((z) => z.id === selectedConflict.id);
+    if (updated) {
+      // Replace with the fresh object so detail panel reflects new data
+      setSelectedConflict(updated);
+    } else if (conflictZones.length > 0) {
+      // The previously-selected zone no longer exists at this date — deselect
+      setSelectedConflict(null);
+    }
+  }, [conflictZones, selectedConflict]);
 
   const handleConflictSelect = useCallback(
     (zone: ConflictZone | null) => {
@@ -114,7 +171,7 @@ export default function Home() {
       <MapGlobe
         onConflictSelect={handleConflictSelect}
         selectedConflict={selectedConflict}
-        timelineDate={timelineDate}
+        timelineDate={timelineDate ?? new Date()}
         conflictZones={conflictZones}
         dbEvents={dbEvents}
         flyToTarget={flyToTarget}
@@ -178,7 +235,9 @@ export default function Home() {
 
       <TimelineBar
         onDateChange={handleDateChange}
-        eventCount={filterEventsByDate(dbEvents, timelineDate).length}
+        eventCount={
+          filterEventsByDate(dbEvents, timelineDate ?? new Date()).length
+        }
         earliestDate={
           dbEvents.length > 0
             ? dbEvents.reduce(
