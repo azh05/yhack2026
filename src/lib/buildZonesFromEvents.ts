@@ -133,6 +133,23 @@ export function buildZonesFromEvents(events: DBEvent[]): ConflictZone[] {
     const region = getCountryRegion(country);
     const eventType = EVENT_TYPE_MAP[primaryType] ?? 'battles';
 
+    // Trend: compare first 30 days vs last 30 days of the window
+    const sorted = [...countryEvents].sort((a, b) => a.event_date.localeCompare(b.event_date));
+    const mid = Math.floor(sorted.length / 2);
+    const firstHalfFat = sorted.slice(0, mid).reduce((s, e) => s + e.fatalities, 0);
+    const secondHalfFat = sorted.slice(mid).reduce((s, e) => s + e.fatalities, 0);
+    const firstHalfCount = mid;
+    const secondHalfCount = sorted.length - mid;
+
+    // Weighted: 60% fatality change, 40% event count change
+    const fatChange = firstHalfFat > 0 ? (secondHalfFat - firstHalfFat) / firstHalfFat : (secondHalfFat > 0 ? 1 : 0);
+    const countChange = firstHalfCount > 0 ? (secondHalfCount - firstHalfCount) / firstHalfCount : 0;
+    const trendScore = fatChange * 0.6 + countChange * 0.4;
+
+    let trend: 'escalating' | 'stable' | 'de-escalating' = 'stable';
+    if (trendScore > 0.15) trend = 'escalating';
+    else if (trendScore < -0.15) trend = 'de-escalating';
+
     zones.push({
       id: country.toLowerCase().replace(/\s+/g, '-'),
       name: country,
@@ -143,10 +160,10 @@ export function buildZonesFromEvents(events: DBEvent[]): ConflictZone[] {
       severity,
       eventCount,
       fatalities30d: fatalities,
-      trend: 'stable',
+      trend,
       primaryType,
       eventType,
-      description: `${countryEvents.length} events with ${fatalities} fatalities`,
+      description: `${countryEvents.length} events with ${fatalities} fatalities — ${trend === 'escalating' ? 'severity increasing' : trend === 'de-escalating' ? 'severity decreasing' : 'no significant change in intensity'}`,
       aiAnalysis: { background: '', currentSituation: '', humanitarianImpact: '', outlook: '', keyActors: [] },
       newsSources: [],
       events: [],
