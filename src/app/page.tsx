@@ -1,18 +1,52 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import { Globe2, ArrowRight, Shield, Radio, BarChart3, Crosshair, Eye } from 'lucide-react';
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import {
+  Globe2,
+  ArrowRight,
+  Shield,
+  Radio,
+  BarChart3,
+  Crosshair,
+  Eye,
+} from "lucide-react";
 
-const CobeGlobe = dynamic(() => import('@/components/ui/cobe-globe'), { ssr: false });
+const CobeGlobe = dynamic(() => import("@/components/ui/cobe-globe"), {
+  ssr: false,
+});
 
 const FEATURES = [
-  { icon: <Globe2 className="w-5 h-5" />, title: '3D Globe', desc: 'Interactive Mapbox globe with heatmaps and clustering' },
-  { icon: <Radio className="w-5 h-5" />, title: 'Live Feeds', desc: 'Real-time ACLED and GDELT event ingestion' },
-  { icon: <BarChart3 className="w-5 h-5" />, title: 'Timeline', desc: 'Scrub through months of conflict history' },
-  { icon: <Shield className="w-5 h-5" />, title: 'AI Briefings', desc: 'Claude-powered intelligence analysis' },
-  { icon: <Crosshair className="w-5 h-5" />, title: 'Filters', desc: 'Region, severity, and event type controls' },
-  { icon: <Eye className="w-5 h-5" />, title: 'Forecast', desc: 'Projected conflict trajectories' },
+  {
+    icon: <Globe2 className="w-5 h-5" />,
+    title: "3D Globe",
+    desc: "Interactive Mapbox globe with heatmaps and clustering",
+  },
+  {
+    icon: <Radio className="w-5 h-5" />,
+    title: "Live Feeds",
+    desc: "Real-time ACLED data and Google News ingestion",
+  },
+  {
+    icon: <BarChart3 className="w-5 h-5" />,
+    title: "Timeline",
+    desc: "Scrub through months of conflict history",
+  },
+  {
+    icon: <Shield className="w-5 h-5" />,
+    title: "AI Briefings",
+    desc: "Claude-powered intelligence analysis",
+  },
+  {
+    icon: <Crosshair className="w-5 h-5" />,
+    title: "Filters",
+    desc: "Region, severity, and event type controls",
+  },
+  {
+    icon: <Eye className="w-5 h-5" />,
+    title: "Forecast",
+    desc: "Projected conflict trajectories",
+  },
 ];
 
 export default function LandingPage() {
@@ -39,19 +73,24 @@ export default function LandingPage() {
             </h1>
 
             <p className="mt-6 text-lg text-white/35 max-w-md leading-relaxed">
-              Track armed conflicts, humanitarian crises, and geopolitical shifts on an interactive 3D globe — powered by AI.
+              Track armed conflicts, humanitarian crises, and geopolitical
+              shifts on an interactive 3D globe — powered by AI.
             </p>
 
             <div className="flex items-center gap-4 mt-10">
               <button
-                onClick={() => router.push('/app')}
+                onClick={() => router.push("/app")}
                 className="group flex items-center gap-2 px-6 py-3 bg-white text-black rounded-lg font-medium text-sm transition-all hover:bg-white/90"
               >
                 Open Map
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </button>
               <button
-                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                onClick={() =>
+                  document
+                    .getElementById("features")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
                 className="px-6 py-3 text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
               >
                 Learn more
@@ -61,9 +100,9 @@ export default function LandingPage() {
             <div className="flex items-center gap-6 mt-16 text-xs font-mono text-white/25">
               <span>ACLED</span>
               <span className="w-px h-3 bg-white/10" />
-              <span>GDELT</span>
+              <span>Google News</span>
               <span className="w-px h-3 bg-white/10" />
-              <span>Claude AI</span>
+              <span>Gemini AI</span>
             </div>
           </div>
 
@@ -79,14 +118,24 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="py-24 px-6 lg:px-12 border-t border-white/[0.04]">
+      <section
+        id="features"
+        className="py-24 px-6 lg:px-12 border-t border-white/[0.04]"
+      >
         <div className="max-w-5xl mx-auto">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-white/[0.04] rounded-xl overflow-hidden">
             {FEATURES.map((f, i) => (
-              <div key={i} className="bg-[#08090d] p-8 hover:bg-white/[0.02] transition-colors">
+              <div
+                key={i}
+                className="bg-[#08090d] p-8 hover:bg-white/[0.02] transition-colors"
+              >
                 <div className="text-white/30 mb-3">{f.icon}</div>
-                <h3 className="text-sm font-display font-bold text-white/80 mb-1">{f.title}</h3>
-                <p className="text-xs text-white/30 leading-relaxed">{f.desc}</p>
+                <h3 className="text-sm font-display font-bold text-white/80 mb-1">
+                  {f.title}
+                </h3>
+                <p className="text-xs text-white/30 leading-relaxed">
+                  {f.desc}
+                </p>
               </div>
             ))}
           </div>
@@ -96,7 +145,7 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="py-20 px-6 text-center">
         <button
-          onClick={() => router.push('/app')}
+          onClick={() => router.push("/app")}
           className="group inline-flex items-center gap-2 px-8 py-4 bg-white text-black rounded-lg font-medium transition-all hover:bg-white/90"
         >
           Launch ConflictLens

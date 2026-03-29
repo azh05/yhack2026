@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { supabase } from "@/lib/supabase";
+import { supabaseServer as supabase } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -19,22 +19,33 @@ async function geocode(placeName: string): Promise<{ lat: number; lng: number } 
   return null;
 }
 
-async function getConflictContext(): Promise<string> {
-  const { data: events } = await supabase
-    .from("conflict_events")
-    .select("*")
-    .order("event_date", { ascending: false })
-    .limit(50);
+async function queryConflictData(countries: string[]): Promise<string> {
+  if (countries.length === 0) return "";
 
-  if (!events || events.length === 0) return "No conflict data available.";
+  const results: string[] = [];
 
-  const summary = events.map(e =>
-    `[${e.event_date}] ${e.event_type} in ${e.admin1 || ""}, ${e.country}: ${e.notes || ""} (${e.fatalities} fatalities, severity ${e.severity_score})`
-  ).join("\n");
+  for (const country of countries.slice(0, 5)) {
+    const { data: events } = await supabase
+      .from("conflict_events")
+      .select("event_date, event_type, admin1, fatalities, severity_score, notes")
+      .ilike("country", country)
+      .gt("fatalities", 0)
+      .order("event_date", { ascending: false })
+      .limit(10);
 
-  const countries = [...new Set(events.map(e => e.country))];
+    if (events && events.length > 0) {
+      const totalFat = events.reduce((s, e) => s + e.fatalities, 0);
+      const avgSev = (events.reduce((s, e) => s + (e.severity_score || 0), 0) / events.length).toFixed(1);
+      results.push(`${country}: ${events.length} recent violent events, ${totalFat} fatalities, avg severity ${avgSev}`);
+      results.push(events.slice(0, 5).map(e =>
+        `  [${e.event_date}] ${e.event_type} in ${e.admin1 || country}: ${e.fatalities} fatalities`
+      ).join("\n"));
+    } else {
+      results.push(`${country}: No recent violent events found in database`);
+    }
+  }
 
-  return `Current conflict data (${events.length} recent events across ${countries.length} countries):\n\nCountries with active conflicts: ${countries.join(", ")}\n\n${summary}`;
+  return results.join("\n");
 }
 
 export async function POST(req: NextRequest) {
@@ -44,28 +55,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing 'message' field" }, { status: 400 });
   }
 
-  const conflictContext = await getConflictContext();
-
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const systemPrompt = `You are War AI, a conflict intelligence assistant embedded in an interactive 3D globe platform that tracks armed conflicts worldwide. You have access to real-time ACLED conflict event data.
+  // Step 1: Ask the model what countries are relevant to the query
+  const extractResult = await model.generateContent(
+    `Extract the country names mentioned or implied in this user query about conflicts. Return ONLY a JSON array of country names, nothing else. If no specific country, return the 5 most relevant conflict countries for the topic.\n\nQuery: "${message}"`
+  );
 
-Your capabilities:
-- Answer questions about active conflicts, their causes, actors, and humanitarian impact
-- Assess travel safety for specific regions
-- Compare conflict severity across countries
-- Explain conflict history and context
-- Navigate the map: if the user wants to see a location on the map (e.g. "show me", "go to", "zoom to", "where is", or mentions a specific place they want to look at), include this JSON on its own line: {"action":"flyTo","place":"PlaceName"}
-  - PlaceName should be the most specific place mentioned (city > region > country)
-  - You can fly to ANY location in the world — countries, cities, regions, landmarks, etc.
+  let countries: string[] = [];
+  try {
+    const raw = extractResult.response.text().replace(/```json?|```/g, "").trim();
+    countries = JSON.parse(raw);
+  } catch {
+    countries = ["Ukraine", "Sudan", "Palestine", "Syria", "Myanmar"];
+  }
 
-Guidelines:
-- Be factual, neutral, and cite specific data points from the context when possible
-- Keep responses concise (2-4 paragraphs max)
-- If asked about safety, always err on the side of caution
-- Reference fatality counts and severity scores when relevant
+  // Step 2: Fetch data for those countries
+  const conflictData = await queryConflictData(countries);
 
-${conflictContext}`;
+  // Step 3: Generate response with the targeted data
+  const systemPrompt = `You are War AI, a conflict intelligence assistant on an interactive 3D globe platform. You have access to ACLED conflict event data.
+
+Use your own knowledge about global conflicts PLUS the database data below to answer questions. If the database doesn't have data for a country, use your general knowledge — don't say "I don't have data."
+
+Database results for relevant countries:
+${conflictData || "No specific data queried."}
+
+Capabilities:
+- Answer questions about conflicts, causes, actors, humanitarian impact
+- Assess travel safety
+- Compare conflicts across countries
+- Navigate the map: if the user wants to see a location, include on its own line: {"action":"flyTo","place":"PlaceName"}
+
+Keep responses concise (2-4 paragraphs). Be factual and neutral.`;
 
   const chatHistory = (history || []).map((msg: { role: string; text: string }) => ({
     role: msg.role === "assistant" ? "model" : "user",
@@ -75,7 +97,7 @@ ${conflictContext}`;
   const chat = model.startChat({
     history: [
       { role: "user", parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Understood. I'm War AI, ready to help with conflict intelligence. I have access to the latest ACLED data and can navigate the globe for you. I can fly to any location worldwide." }] },
+      { role: "model", parts: [{ text: "Understood. I'm War AI with access to ACLED data and general conflict knowledge. I can answer questions and navigate the globe." }] },
       ...chatHistory,
     ],
   });
@@ -83,7 +105,7 @@ ${conflictContext}`;
   const result = await chat.sendMessage(message);
   const response = result.response.text();
 
-  // Extract flyTo command if present
+  // Extract flyTo command
   let mapCommand = null;
   const cmdMatch = response.match(/\{"action":"flyTo","place":"([^"]+)"\}/);
   if (cmdMatch) {
@@ -94,7 +116,6 @@ ${conflictContext}`;
     }
   }
 
-  // Clean the response text (remove the JSON command from display)
   const cleanResponse = response.replace(/\{"action":"flyTo".*?\}\n?/g, "").trim();
 
   return NextResponse.json({ response: cleanResponse, mapCommand });

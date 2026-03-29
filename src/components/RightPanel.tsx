@@ -14,9 +14,9 @@ import {
   ChevronDown,
   BarChart3,
   Thermometer,
-} from 'lucide-react';
-import { EVENT_TYPES, REGIONS } from '@/data/conflicts';
-import type { MapFilters } from '@/data/filters';
+} from "lucide-react";
+import { EVENT_TYPES, REGIONS } from "@/data/conflicts";
+import type { MapFilters } from "@/data/filters";
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -35,12 +35,29 @@ const LAYER_ICONS: Record<string, React.ReactNode> = {
 };
 
 const OVERLAY_META = [
-  { id: 'heatmap' as const, label: 'Severity Heatmap', icon: <Thermometer className="w-3.5 h-3.5" /> },
-  { id: 'clusters' as const, label: 'Event Clusters', icon: <BarChart3 className="w-3.5 h-3.5" /> },
-  { id: 'borders' as const, label: 'Conflict Borders', icon: <Landmark className="w-3.5 h-3.5" /> },
+  {
+    id: "heatmap" as const,
+    label: "Severity Heatmap",
+    icon: <Thermometer className="w-3.5 h-3.5" />,
+  },
+  {
+    id: "clusters" as const,
+    label: "Event Clusters",
+    icon: <BarChart3 className="w-3.5 h-3.5" />,
+  },
+  {
+    id: "borders" as const,
+    label: "Conflict Borders",
+    icon: <Landmark className="w-3.5 h-3.5" />,
+  },
 ];
 
-export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange }: RightPanelProps) {
+export default function RightPanel({
+  isOpen,
+  onToggle,
+  filters,
+  onFiltersChange,
+}: RightPanelProps) {
   const toggleType = (id: string) => {
     const next = new Set(filters.activeTypes);
     if (next.has(id)) next.delete(id);
@@ -52,7 +69,7 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
     onFiltersChange({ ...filters, selectedRegion: region });
   };
 
-  const toggleOverlay = (id: 'heatmap' | 'clusters' | 'borders') => {
+  const toggleOverlay = (id: "heatmap" | "clusters" | "borders") => {
     onFiltersChange({
       ...filters,
       overlays: { ...filters.overlays, [id]: !filters.overlays[id] },
@@ -60,11 +77,17 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
   };
 
   const setSeverityMin = (val: number) => {
-    onFiltersChange({ ...filters, severityRange: [val, filters.severityRange[1]] });
+    onFiltersChange({
+      ...filters,
+      severityRange: [val, filters.severityRange[1]],
+    });
   };
 
   const setSeverityMax = (val: number) => {
-    onFiltersChange({ ...filters, severityRange: [filters.severityRange[0], val] });
+    onFiltersChange({
+      ...filters,
+      severityRange: [filters.severityRange[0], val],
+    });
   };
 
   if (!isOpen) return null;
@@ -101,8 +124,14 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
               onChange={(e) => setRegion(e.target.value)}
               className="w-full appearance-none px-3 py-2 rounded-lg bg-surface-200 border border-white/[0.06] text-xs text-white/80 outline-none focus:border-accent/30 transition-colors cursor-pointer"
             >
-              {REGIONS.map(r => (
-                <option key={r} value={r} className="bg-[#161e2e] text-white/90">{r}</option>
+              {REGIONS.map((r) => (
+                <option
+                  key={r}
+                  value={r}
+                  className="bg-[#161e2e] text-white/90"
+                >
+                  {r}
+                </option>
               ))}
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted/50 pointer-events-none" />
@@ -115,7 +144,7 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
             Event Types
           </label>
           <div className="space-y-1">
-            {EVENT_TYPES.map(type => {
+            {EVENT_TYPES.map((type) => {
               const isActive = filters.activeTypes.has(type.id);
               return (
                 <button
@@ -161,7 +190,8 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
             Severity Range
           </label>
           <div className="px-1">
-            <div className="h-2 rounded-full overflow-hidden mb-3"
+            <div
+              className="h-2 rounded-full overflow-hidden mb-3"
               style={{
                 background:
                   "linear-gradient(to right, #facc15, #f97316, #ef4444, #991b1b, #7f1d1d)",
@@ -169,7 +199,9 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
             />
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="text-2xs font-mono text-muted/40 mb-1 block">Min</label>
+                <label className="text-2xs font-mono text-muted/40 mb-1 block">
+                  Min
+                </label>
                 <input
                   type="range"
                   min="1"
@@ -181,7 +213,9 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
                 />
               </div>
               <div className="flex-1">
-                <label className="text-2xs font-mono text-muted/40 mb-1 block">Max</label>
+                <label className="text-2xs font-mono text-muted/40 mb-1 block">
+                  Max
+                </label>
                 <input
                   type="range"
                   min="1"
@@ -206,7 +240,7 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
             Overlays
           </label>
           <div className="space-y-1">
-            {OVERLAY_META.map(overlay => {
+            {OVERLAY_META.map((overlay) => {
               const active = filters.overlays[overlay.id];
               return (
                 <button
@@ -214,8 +248,8 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
                   onClick={() => toggleOverlay(overlay.id)}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200 ${
                     active
-                      ? 'bg-accent/10 text-accent-glow/90 border border-accent/15'
-                      : 'text-muted/50 hover:text-muted-light hover:bg-surface-300/20 border border-transparent'
+                      ? "bg-accent/10 text-accent-glow/90 border border-accent/15"
+                      : "text-muted/50 hover:text-muted-light hover:bg-surface-300/20 border border-transparent"
                   }`}
                 >
                   {overlay.icon}
@@ -237,7 +271,8 @@ export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange 
       {/* Data Source Attribution */}
       <div className="px-4 py-2.5 border-t border-white/[0.04]">
         <p className="text-2xs text-muted/30 font-mono leading-relaxed">
-          Data: ACLED &middot; GDELT &middot; CAST<br />
+          Data: ACLED &middot; Google News &middot; CAST
+          <br />
           Updated: 15 min ago
         </p>
       </div>

@@ -1,4 +1,4 @@
-import { CONFLICT_ZONES, type ConflictZone } from './conflicts';
+import { CONFLICT_ZONES, type ConflictZone } from "./conflicts";
 
 /**
  * Simulates conflict evolution over time.
@@ -6,8 +6,8 @@ import { CONFLICT_ZONES, type ConflictZone } from './conflicts';
  * so scrubbing the timeline back and forth is consistent.
  */
 
-const TIMELINE_START = new Date('2024-01-01').getTime();
-const TIMELINE_END = new Date('2026-03-28').getTime();
+const TIMELINE_START = new Date("2024-01-01").getTime();
+const TIMELINE_END = new Date("2026-03-28").getTime();
 const TOTAL_MS = TIMELINE_END - TIMELINE_START;
 
 // Deterministic pseudo-random from a seed
@@ -34,7 +34,9 @@ function getTrajectory(zone: ConflictZone): ZoneTrajectory {
   if (trajectories.has(zone.id)) return trajectories.get(zone.id)!;
 
   // Generate deterministic trajectory from zone id hash
-  const hash = zone.id.split('').reduce((acc, c) => acc * 31 + c.charCodeAt(0), 0);
+  const hash = zone.id
+    .split("")
+    .reduce((acc, c) => acc * 31 + c.charCodeAt(0), 0);
 
   const trajectory: ZoneTrajectory = {
     phaseOffset: seededRandom(hash) * Math.PI * 2,
@@ -48,14 +50,21 @@ function getTrajectory(zone: ConflictZone): ZoneTrajectory {
   return trajectory;
 }
 
-export function getConflictAtDate(zone: ConflictZone, date: Date): ConflictZone {
-  const t = Math.max(0, Math.min(1, (date.getTime() - TIMELINE_START) / TOTAL_MS));
+export function getConflictAtDate(
+  zone: ConflictZone,
+  date: Date,
+): ConflictZone {
+  const t = Math.max(
+    0,
+    Math.min(1, (date.getTime() - TIMELINE_START) / TOTAL_MS),
+  );
   const traj = getTrajectory(zone);
 
   // Severity oscillates with a long-period wave + a spike around peakTime
   const waveComponent = Math.sin(t * Math.PI * 4 + traj.phaseOffset) * 0.8;
   const peakDistance = Math.abs(t - traj.peakTime);
-  const peakComponent = traj.peakDelta * Math.exp(-peakDistance * peakDistance * 20);
+  const peakComponent =
+    traj.peakDelta * Math.exp(-peakDistance * peakDistance * 20);
   // Gradual drift component
   const drift = (t - 0.5) * (traj.peakDelta > 0 ? 0.5 : -0.3);
 
@@ -64,25 +73,37 @@ export function getConflictAtDate(zone: ConflictZone, date: Date): ConflictZone 
 
   // Fatalities scale with severity
   const severityRatio = newSeverity / zone.severity;
-  const fatalityNoise = 1 + (seededRandom(zone.id.length * 100 + Math.floor(t * 50)) - 0.5) * 0.4;
-  const newFatalities = Math.max(0, Math.round(zone.fatalities30d * severityRatio * fatalityNoise));
+  const fatalityNoise =
+    1 + (seededRandom(zone.id.length * 100 + Math.floor(t * 50)) - 0.5) * 0.4;
+  const newFatalities = Math.max(
+    0,
+    Math.round(zone.fatalities30d * severityRatio * fatalityNoise),
+  );
 
   // Event count varies
-  const eventNoise = 1 + (seededRandom(zone.id.length * 200 + Math.floor(t * 50)) - 0.5) * 0.5;
-  const newEventCount = Math.max(1, Math.round(zone.eventCount * severityRatio * eventNoise));
+  const eventNoise =
+    1 + (seededRandom(zone.id.length * 200 + Math.floor(t * 50)) - 0.5) * 0.5;
+  const newEventCount = Math.max(
+    1,
+    Math.round(zone.eventCount * severityRatio * eventNoise),
+  );
 
   // Trend determined by local derivative
   const tPrev = Math.max(0, t - 0.02);
   const prevWave = Math.sin(tPrev * Math.PI * 4 + traj.phaseOffset) * 0.8;
   const prevPeakDist = Math.abs(tPrev - traj.peakTime);
   const prevPeak = traj.peakDelta * Math.exp(-prevPeakDist * prevPeakDist * 20);
-  const prevSeverity = zone.severity + prevWave + prevPeak + (tPrev - 0.5) * (traj.peakDelta > 0 ? 0.5 : -0.3);
+  const prevSeverity =
+    zone.severity +
+    prevWave +
+    prevPeak +
+    (tPrev - 0.5) * (traj.peakDelta > 0 ? 0.5 : -0.3);
   const derivative = newSeverity - prevSeverity;
 
-  let trend: 'escalating' | 'stable' | 'de-escalating';
-  if (derivative > 0.15) trend = 'escalating';
-  else if (derivative < -0.15) trend = 'de-escalating';
-  else trend = 'stable';
+  let trend: "escalating" | "persistent" | "de-escalating";
+  if (derivative > 0.15) trend = "escalating";
+  else if (derivative < -0.15) trend = "de-escalating";
+  else trend = "persistent";
 
   return {
     ...zone,
@@ -94,5 +115,5 @@ export function getConflictAtDate(zone: ConflictZone, date: Date): ConflictZone 
 }
 
 export function getConflictsAtDate(date: Date): ConflictZone[] {
-  return CONFLICT_ZONES.map(zone => getConflictAtDate(zone, date));
+  return CONFLICT_ZONES.map((zone) => getConflictAtDate(zone, date));
 }

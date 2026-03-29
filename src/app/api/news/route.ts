@@ -15,10 +15,16 @@ function parseRSSItems(xml: string): NewsArticle[] {
 
   while ((match = itemRegex.exec(xml)) !== null) {
     const item = match[1];
-    const title = item.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "";
+    const title =
+      item
+        .match(/<title>([\s\S]*?)<\/title>/)?.[1]
+        ?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "";
     const link = item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "";
     const pubDate = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
-    const source = item.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "";
+    const source =
+      item
+        .match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]
+        ?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "";
 
     if (title && link) {
       articles.push({
@@ -33,6 +39,19 @@ function parseRSSItems(xml: string): NewsArticle[] {
   return articles;
 }
 
+/**
+ * Format a Date (or ISO string) as YYYY-MM-DD which is the format
+ * Google News search operators `before:` and `after:` expect.
+ */
+function toGoogleDateString(input: string): string {
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 const CACHE_MAX_AGE_HOURS = 6;
 
 export async function GET(req: NextRequest) {
@@ -40,14 +59,25 @@ export async function GET(req: NextRequest) {
   const country = params.get("country");
   const keyword = params.get("keyword") || "conflict";
   const limit = parseInt(params.get("limit") || "10");
+  const before = params.get("before"); // ISO date string or YYYY-MM-DD
+  const after = params.get("after"); // ISO date string or YYYY-MM-DD
 
   if (!country) {
-    return NextResponse.json({ error: "Missing 'country' parameter" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing 'country' parameter" },
+      { status: 400 },
+    );
   }
 
+  // Build the cache key suffix so date-scoped queries are cached separately
+  const dateCacheKey = [after, before].filter(Boolean).join("_") || "latest";
+
   // Check cache first
-  const cacheThreshold = new Date(Date.now() - CACHE_MAX_AGE_HOURS * 60 * 60 * 1000).toISOString();
-  const { data: cached } = await supabase
+  const cacheThreshold = new Date(
+    Date.now() - CACHE_MAX_AGE_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+
+  let cacheQuery = supabase
     .from("news_articles")
     .select("*")
     .eq("country", country)
@@ -56,12 +86,52 @@ export async function GET(req: NextRequest) {
     .order("pub_date", { ascending: false })
     .limit(limit);
 
-  if (cached && cached.length > 0) {
-    return NextResponse.json({ country, keyword, articles: cached, cached: true });
+  // When date-scoped, also filter cached rows by the requested window
+  if (after) {
+    const afterDate = toGoogleDateString(after);
+    if (afterDate) {
+      cacheQuery = cacheQuery.gte(
+        "pub_date",
+        new Date(afterDate).toISOString(),
+      );
+    }
+  }
+  if (before) {
+    const beforeDate = toGoogleDateString(before);
+    if (beforeDate) {
+      cacheQuery = cacheQuery.lte(
+        "pub_date",
+        new Date(beforeDate).toISOString(),
+      );
+    }
   }
 
-  // Fetch fresh from Google News RSS
-  const query = encodeURIComponent(`${country} ${keyword}`);
+  const { data: cached } = await cacheQuery;
+
+  if (cached && cached.length > 0) {
+    return NextResponse.json({
+      country,
+      keyword,
+      articles: cached,
+      cached: true,
+    });
+  }
+
+  // Build Google News RSS search query with date operators.
+  // Google News search supports `before:YYYY-MM-DD` and `after:YYYY-MM-DD`
+  // to restrict results to a specific date window.
+  let searchTerms = `${country} ${keyword}`;
+
+  if (after) {
+    const formatted = toGoogleDateString(after);
+    if (formatted) searchTerms += ` after:${formatted}`;
+  }
+  if (before) {
+    const formatted = toGoogleDateString(before);
+    if (formatted) searchTerms += ` before:${formatted}`;
+  }
+
+  const query = encodeURIComponent(searchTerms);
   const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
 
   try {
@@ -90,6 +160,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ country, keyword, articles, cached: false });
   } catch {
-    return NextResponse.json({ error: "Failed to fetch news" }, { status: 502 });
+    return NextResponse.json(
+      { error: "Failed to fetch news" },
+      { status: 502 },
+    );
   }
 }

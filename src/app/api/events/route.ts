@@ -9,40 +9,39 @@ export async function GET(req: NextRequest) {
   const startDate = params.get("start_date");
   const endDate = params.get("end_date");
   const minFatalities = params.get("min_fatalities");
-  const limit = parseInt(params.get("limit") || "1000");
-  const offset = parseInt(params.get("offset") || "0");
+  const limit = Math.min(parseInt(params.get("limit") || "50000"), 50000);
 
-  let query = supabase
-    .from("conflict_events")
-    .select("*")
-    .order("event_date", { ascending: false })
-    .range(offset, offset + limit - 1);
+  // Supabase caps at 1000 per request, so paginate
+  let allEvents: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
 
-  if (country) {
-    query = query.ilike("country", country);
+  while (allEvents.length < limit) {
+    let query = supabase
+      .from("conflict_events")
+      .select("*")
+      .order("event_date", { ascending: false })
+      .range(page * pageSize, Math.min((page + 1) * pageSize - 1, limit - 1));
+
+    if (country) query = query.ilike("country", country);
+    if (eventType) query = query.eq("event_type", eventType);
+    if (startDate) query = query.gte("event_date", startDate);
+    if (endDate) query = query.lte("event_date", endDate);
+    if (minFatalities) query = query.gte("fatalities", parseInt(minFatalities));
+
+    const { data, error } = await query;
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!data || data.length === 0) break;
+
+    allEvents = allEvents.concat(data);
+
+    if (data.length < pageSize) break;
+    page++;
   }
 
-  if (eventType) {
-    query = query.eq("event_type", eventType);
-  }
-
-  if (startDate) {
-    query = query.gte("event_date", startDate);
-  }
-
-  if (endDate) {
-    query = query.lte("event_date", endDate);
-  }
-
-  if (minFatalities) {
-    query = query.gte("fatalities", parseInt(minFatalities));
-  }
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ events: data, count: data?.length || 0 });
+  return NextResponse.json({ events: allEvents, count: allEvents.length });
 }
