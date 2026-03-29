@@ -41,12 +41,19 @@ export function useConflictEvents(timelineDate: Date) {
 
     try {
       setLoading(true);
-      const res = await fetch(`/api/events?start_date=${startStr}&end_date=${endStr}&limit=50000`);
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setEvents(data.events || []);
+      // Fast first load: only events with fatalities (much smaller set, renders instantly)
+      const fastRes = await fetch(`/api/events?start_date=${startStr}&end_date=${endStr}&min_fatalities=1&limit=10000`);
+      const fastData = await fastRes.json();
+      if (!fastData.error) {
+        setEvents(fastData.events || []);
+        setLoading(false);
+      }
+
+      // Then backfill all events (including 0-fatality) in background
+      const fullRes = await fetch(`/api/events?start_date=${startStr}&end_date=${endStr}&limit=50000`);
+      const fullData = await fullRes.json();
+      if (!fullData.error) {
+        setEvents(fullData.events || []);
       }
     } catch {
       setError('Failed to fetch events');

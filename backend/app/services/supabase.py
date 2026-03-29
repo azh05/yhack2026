@@ -101,6 +101,36 @@ def get_cached_news(country: str, keyword: str, max_age_hours: int = 6) -> list[
     return None
 
 
+def get_latest_news_timestamp(country: str) -> str | None:
+    client = get_supabase_client()
+    result = (
+        client.table("news_articles")
+        .select("fetched_at")
+        .eq("country", country)
+        .order("fetched_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return result.data[0]["fetched_at"]
+    return None
+
+
+def get_cached_blurb_with_timestamp(country: str) -> tuple[str, str] | None:
+    client = get_supabase_client()
+    result = (
+        client.table("ai_blurbs")
+        .select("blurb_text, created_at")
+        .eq("country", country)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return result.data[0]["blurb_text"], result.data[0]["created_at"]
+    return None
+
+
 def get_cached_blurb(country: str) -> str | None:
     client = get_supabase_client()
     result = (

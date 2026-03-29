@@ -1,126 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import {
-  getSeverityColor,
-  type ConflictZone,
-} from "@/data/conflicts";
-import { type DBEvent, buildGeoJSONFromEvents } from "@/lib/useConflictEvents";
-import type { MapFilters } from "@/components/RightPanel";
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { CONFLICT_ZONES, getSeverityColor, type ConflictZone } from '@/data/conflicts';
+import { getConflictsAtDate } from '@/data/timeline';
+import type { MapFilters } from '@/data/filters';
+import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from '@/lib/useConflictEvents';
 
 mapboxgl.accessToken =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
-
-// Map ACLED event_type strings to our filter IDs
-const EVENT_TYPE_MAP: Record<string, string> = {
-  "Battles": "battles",
-  "Violence against civilians": "violence_civilians",
-  "Explosions/Remote violence": "explosions",
-  "Protests": "protests",
-  "Riots": "riots",
-  "Strategic developments": "strategic",
-};
-
-// Comprehensive country → region mapping for all 148 ACLED countries
-const COUNTRY_REGION: Record<string, string> = {
-  // Middle East & North Africa
-  Palestine: "Middle East & North Africa", Syria: "Middle East & North Africa",
-  Yemen: "Middle East & North Africa", Iraq: "Middle East & North Africa",
-  Iran: "Middle East & North Africa", Israel: "Middle East & North Africa",
-  Lebanon: "Middle East & North Africa", Jordan: "Middle East & North Africa",
-  Egypt: "Middle East & North Africa", Libya: "Middle East & North Africa",
-  Tunisia: "Middle East & North Africa", Algeria: "Middle East & North Africa",
-  Morocco: "Middle East & North Africa", Turkey: "Middle East & North Africa",
-  "Saudi Arabia": "Middle East & North Africa", Kuwait: "Middle East & North Africa",
-  Bahrain: "Middle East & North Africa", Qatar: "Middle East & North Africa",
-  "United Arab Emirates": "Middle East & North Africa", Oman: "Middle East & North Africa",
-  // Sub-Saharan Africa
-  Ethiopia: "Sub-Saharan Africa", Sudan: "Sub-Saharan Africa",
-  "South Sudan": "Sub-Saharan Africa", Somalia: "Sub-Saharan Africa",
-  Nigeria: "Sub-Saharan Africa", Mali: "Sub-Saharan Africa",
-  "Democratic Republic of Congo": "Sub-Saharan Africa",
-  "Republic of Congo": "Sub-Saharan Africa",
-  "Central African Republic": "Sub-Saharan Africa",
-  Cameroon: "Sub-Saharan Africa", Chad: "Sub-Saharan Africa",
-  Niger: "Sub-Saharan Africa", "Burkina Faso": "Sub-Saharan Africa",
-  Ghana: "Sub-Saharan Africa", "Ivory Coast": "Sub-Saharan Africa",
-  Senegal: "Sub-Saharan Africa", Guinea: "Sub-Saharan Africa",
-  "Guinea-Bissau": "Sub-Saharan Africa", "Sierra Leone": "Sub-Saharan Africa",
-  Liberia: "Sub-Saharan Africa", Togo: "Sub-Saharan Africa",
-  Benin: "Sub-Saharan Africa", Gambia: "Sub-Saharan Africa",
-  Mauritania: "Sub-Saharan Africa", Eritrea: "Sub-Saharan Africa",
-  Djibouti: "Sub-Saharan Africa", Kenya: "Sub-Saharan Africa",
-  Uganda: "Sub-Saharan Africa", Rwanda: "Sub-Saharan Africa",
-  Burundi: "Sub-Saharan Africa", Tanzania: "Sub-Saharan Africa",
-  Mozambique: "Sub-Saharan Africa", Malawi: "Sub-Saharan Africa",
-  Zambia: "Sub-Saharan Africa", Zimbabwe: "Sub-Saharan Africa",
-  Botswana: "Sub-Saharan Africa", Namibia: "Sub-Saharan Africa",
-  "South Africa": "Sub-Saharan Africa", Lesotho: "Sub-Saharan Africa",
-  eSwatini: "Sub-Saharan Africa", Madagascar: "Sub-Saharan Africa",
-  Angola: "Sub-Saharan Africa", Gabon: "Sub-Saharan Africa",
-  "Equatorial Guinea": "Sub-Saharan Africa", Comoros: "Sub-Saharan Africa",
-  "Cape Verde": "Sub-Saharan Africa", "Sao Tome and Principe": "Sub-Saharan Africa",
-  Mauritius: "Sub-Saharan Africa", Seychelles: "Sub-Saharan Africa",
-  Mayotte: "Sub-Saharan Africa", Reunion: "Sub-Saharan Africa",
-  // Eastern Europe
-  Ukraine: "Eastern Europe", Moldova: "Eastern Europe",
-  Georgia: "Eastern Europe", Azerbaijan: "Eastern Europe",
-  Russia: "Eastern Europe",
-  // South Asia
-  Afghanistan: "South Asia", Pakistan: "South Asia",
-  India: "South Asia", Nepal: "South Asia",
-  Bangladesh: "South Asia", "Sri Lanka": "South Asia",
-  Bhutan: "South Asia", Maldives: "South Asia",
-  // Southeast Asia
-  Myanmar: "Southeast Asia", Thailand: "Southeast Asia",
-  Cambodia: "Southeast Asia", Laos: "Southeast Asia",
-  Vietnam: "Southeast Asia", Philippines: "Southeast Asia",
-  Indonesia: "Southeast Asia", Malaysia: "Southeast Asia",
-  Singapore: "Southeast Asia", "East Timor": "Southeast Asia",
-  "Papua New Guinea": "Southeast Asia", Fiji: "Southeast Asia",
-  // Central America & Caribbean
-  Haiti: "Central America & Caribbean", Mexico: "Central America & Caribbean",
-  Guatemala: "Central America & Caribbean", Honduras: "Central America & Caribbean",
-  "El Salvador": "Central America & Caribbean", Nicaragua: "Central America & Caribbean",
-  "Costa Rica": "Central America & Caribbean", Panama: "Central America & Caribbean",
-  Cuba: "Central America & Caribbean", Jamaica: "Central America & Caribbean",
-  "Dominican Republic": "Central America & Caribbean", Dominica: "Central America & Caribbean",
-  "Puerto Rico": "Central America & Caribbean", Belize: "Central America & Caribbean",
-  "Trinidad and Tobago": "Central America & Caribbean",
-  Barbados: "Central America & Caribbean", Grenada: "Central America & Caribbean",
-  "Saint Lucia": "Central America & Caribbean",
-  "Saint Vincent and the Grenadines": "Central America & Caribbean",
-  "Saint Kitts and Nevis": "Central America & Caribbean",
-  "Antigua and Barbuda": "Central America & Caribbean",
-  Bahamas: "Central America & Caribbean", Aruba: "Central America & Caribbean",
-  Guadeloupe: "Central America & Caribbean", Martinique: "Central America & Caribbean",
-  // South America
-  Colombia: "South America", Venezuela: "South America",
-  Brazil: "South America", Peru: "South America",
-  Ecuador: "South America", Bolivia: "South America",
-  Chile: "South America", Argentina: "South America",
-  Paraguay: "South America", Uruguay: "South America",
-  Guyana: "South America", Suriname: "South America",
-  "French Guiana": "South America",
-};
 
 interface MapGlobeProps {
   onConflictSelect: (zone: ConflictZone | null) => void;
   selectedConflict: ConflictZone | null;
   timelineDate: Date;
+  filters: MapFilters;
+  rightPanelOpen?: boolean;
   conflictZones: ConflictZone[];
   dbEvents?: DBEvent[];
   flyToTarget?: { lat: number; lng: number } | null;
-  filters?: MapFilters;
 }
 
 function buildGeoJSON(zones: ConflictZone[]) {
   return {
-    type: "FeatureCollection" as const,
-    features: zones.map((zone) => ({
-      type: "Feature" as const,
+    type: 'FeatureCollection' as const,
+    features: zones.map(zone => ({
+      type: 'Feature' as const,
       properties: {
         id: zone.id,
         name: zone.name,
@@ -129,6 +35,9 @@ function buildGeoJSON(zones: ConflictZone[]) {
         eventCount: zone.eventCount,
         country: zone.country,
         trend: zone.trend,
+        region: zone.region,
+        primaryType: zone.primaryType,
+        eventType: zone.eventType,
       },
       geometry: {
         type: "Point" as const,
@@ -138,67 +47,51 @@ function buildGeoJSON(zones: ConflictZone[]) {
   };
 }
 
+function matchesEventType(zone: ConflictZone, activeTypes: Set<string>): boolean {
+  return activeTypes.has(zone.eventType);
+}
+
 export default function MapGlobe({
   onConflictSelect,
   selectedConflict,
   timelineDate,
+  filters,
+  rightPanelOpen = false,
   conflictZones,
   dbEvents = [],
   flyToTarget,
-  filters,
 }: MapGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
   const selectedIdRef = useRef<string | null>(null);
 
-  // Keep ref in sync
   useEffect(() => {
     selectedIdRef.current = selectedConflict?.id ?? null;
   }, [selectedConflict]);
 
-  // Filter conflict zones based on layer filters
-  const filteredZones = useMemo(() => {
-    if (!filters) return conflictZones;
-    return conflictZones.filter((z) => {
-      // Region filter
-      if (filters.selectedRegion !== "All Regions" && z.region !== filters.selectedRegion) {
-        return false;
-      }
-      // Event type filter — match zone's primaryType against active types
-      const typeId = EVENT_TYPE_MAP[z.primaryType];
-      if (typeId && !filters.activeEventTypes.has(typeId)) {
-        return false;
-      }
+  const handleZoomIn = useCallback(() => { map.current?.zoomIn({ duration: 300 }); }, []);
+  const handleZoomOut = useCallback(() => { map.current?.zoomOut({ duration: 300 }); }, []);
+  const handleResetBearing = useCallback(() => {
+    map.current?.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+  }, []);
+
+  // Use backend conflictZones if available, otherwise fall back to local data with filters
+  const visibleZones = useMemo(() => {
+    const zones = conflictZones.length > 0 ? conflictZones : getConflictsAtDate(timelineDate);
+    return zones.filter(zone => {
+      if (filters.selectedRegion !== 'All Regions' && zone.region !== filters.selectedRegion) return false;
+      if (zone.severity < filters.severityRange[0] || zone.severity > filters.severityRange[1]) return false;
+      if (!matchesEventType(zone, filters.activeTypes)) return false;
       return true;
     });
-  }, [conflictZones, filters]);
+  }, [timelineDate, filters, conflictZones]);
 
-  // Filter DB events based on layer filters
-  const filteredDbEvents = useMemo(() => {
-    if (!filters) return dbEvents;
-    return dbEvents.filter((e) => {
-      // Region filter
-      if (filters.selectedRegion !== "All Regions") {
-        const region = COUNTRY_REGION[e.country];
-        if (region !== filters.selectedRegion) return false;
-      }
-      // Event type filter
-      const typeId = EVENT_TYPE_MAP[e.event_type];
-      if (typeId && !filters.activeEventTypes.has(typeId)) {
-        return false;
-      }
-      return true;
-    });
-  }, [dbEvents, filters]);
-
-  // Create custom DOM marker for individual (unclustered) points
-  const createMarkerEl = useCallback(
-    (zone: ConflictZone) => {
-      const el = document.createElement("div");
-      const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
-      const color = getSeverityColor(zone.severity);
+  const createMarkerEl = useCallback((zone: ConflictZone) => {
+    const el = document.createElement('div');
+    const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
+    const color = getSeverityColor(zone.severity);
 
       el.innerHTML = `
       <div style="position:relative; width:${size}px; height:${size}px; cursor:pointer;" class="conflict-marker-group">
@@ -238,32 +131,13 @@ export default function MapGlobe({
         onConflictSelect(zone);
       });
 
-      // Hover tooltip
-      el.addEventListener("mouseenter", () => {
-        el.title = `${zone.name} — Severity ${zone.severity.toFixed(1)}`;
-      });
+    el.addEventListener('mouseenter', () => {
+      el.title = `${zone.name} — Severity ${zone.severity.toFixed(1)}`;
+    });
 
       return el;
     },
     [onConflictSelect],
-  );
-
-  // Add DOM markers for individual conflict zones
-  const addMarkers = useCallback(
-    (m: mapboxgl.Map) => {
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current = [];
-
-      filteredZones.forEach((zone) => {
-        const el = createMarkerEl(zone);
-        const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-          .setLngLat([zone.longitude, zone.latitude])
-          .addTo(m);
-
-        markersRef.current.push(marker);
-      });
-    },
-    [createMarkerEl, filteredZones],
   );
 
   // Initialize map
@@ -282,8 +156,7 @@ export default function MapGlobe({
       pitch: 15,
     });
 
-    // Globe atmosphere
-    m.on("style.load", () => {
+    m.on('style.load', () => {
       m.setFog({
         color: "rgb(8, 12, 22)",
         "high-color": "rgb(18, 24, 44)",
@@ -296,18 +169,16 @@ export default function MapGlobe({
     m.on("load", () => {
       setMapLoaded(true);
 
-      // Terrain
-      m.addSource("mapbox-dem", {
-        type: "raster-dem",
-        url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+      m.addSource('mapbox-dem', {
+        type: 'raster-dem',
+        url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
         tileSize: 512,
         maxzoom: 14,
       });
       m.setTerrain({ source: "mapbox-dem", exaggeration: 1.2 });
 
-      // --- Darken base layers for contrast ---
-      if (m.getLayer("water")) {
-        m.setPaintProperty("water", "fill-color", "#060a12");
+      if (m.getLayer('water')) {
+        m.setPaintProperty('water', 'fill-color', '#060a12');
       }
       ["land", "landcover", "landuse"].forEach((layer) => {
         if (m.getLayer(layer)) {
@@ -317,11 +188,10 @@ export default function MapGlobe({
         }
       });
 
-      // Admin boundaries - brighter for visibility
-      if (m.getLayer("admin-0-boundary")) {
-        m.setPaintProperty("admin-0-boundary", "line-color", "#2a4a6f");
-        m.setPaintProperty("admin-0-boundary", "line-opacity", 0.6);
-        m.setPaintProperty("admin-0-boundary", "line-width", 1);
+      if (m.getLayer('admin-0-boundary')) {
+        m.setPaintProperty('admin-0-boundary', 'line-color', '#2a4a6f');
+        m.setPaintProperty('admin-0-boundary', 'line-opacity', 0.6);
+        m.setPaintProperty('admin-0-boundary', 'line-width', 1);
       }
       if (m.getLayer("admin-0-boundary-disputed")) {
         m.setPaintProperty(
@@ -336,48 +206,37 @@ export default function MapGlobe({
         m.setPaintProperty("admin-1-boundary", "line-opacity", 0.3);
       }
 
-      // --- FIX: Brighten map labels for readability ---
-      m.getStyle().layers.forEach((layer) => {
-        if (layer.type === "symbol") {
+      m.getStyle().layers.forEach(layer => {
+        if (layer.type === 'symbol') {
           const id = layer.id;
           try {
-            if (id.includes("country-label")) {
-              // Country names - bright and prominent
-              m.setPaintProperty(id, "text-color", "#c8d6e5");
-              m.setPaintProperty(id, "text-halo-color", "#0a0e17");
-              m.setPaintProperty(id, "text-halo-width", 2);
-              m.setPaintProperty(id, "text-halo-blur", 1);
-            } else if (
-              id.includes("state-label") ||
-              id.includes("settlement-major")
-            ) {
-              // State/province and major city names - clearly visible
-              m.setPaintProperty(id, "text-color", "#9bb3cc");
-              m.setPaintProperty(id, "text-halo-color", "#0a0e17");
-              m.setPaintProperty(id, "text-halo-width", 1.5);
-              m.setPaintProperty(id, "text-halo-blur", 0.5);
-            } else if (
-              id.includes("settlement") ||
-              id.includes("place-label")
-            ) {
-              // Other settlements - subtly visible
-              m.setPaintProperty(id, "text-color", "#7a96b0");
-              m.setPaintProperty(id, "text-halo-color", "#0a0e17");
-              m.setPaintProperty(id, "text-halo-width", 1.5);
-            } else if (id.includes("label")) {
-              // All other labels (water, POIs, etc.)
-              m.setPaintProperty(id, "text-color", "#5a7a94");
-              m.setPaintProperty(id, "text-halo-color", "#0a0e17");
-              m.setPaintProperty(id, "text-halo-width", 1);
+            if (id.includes('country-label')) {
+              m.setPaintProperty(id, 'text-color', '#c8d6e5');
+              m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
+              m.setPaintProperty(id, 'text-halo-width', 2);
+              m.setPaintProperty(id, 'text-halo-blur', 1);
+            } else if (id.includes('state-label') || id.includes('settlement-major')) {
+              m.setPaintProperty(id, 'text-color', '#9bb3cc');
+              m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
+              m.setPaintProperty(id, 'text-halo-width', 1.5);
+              m.setPaintProperty(id, 'text-halo-blur', 0.5);
+            } else if (id.includes('settlement') || id.includes('place-label')) {
+              m.setPaintProperty(id, 'text-color', '#7a96b0');
+              m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
+              m.setPaintProperty(id, 'text-halo-width', 1.5);
+            } else if (id.includes('label')) {
+              m.setPaintProperty(id, 'text-color', '#5a7a94');
+              m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
+              m.setPaintProperty(id, 'text-halo-width', 1);
             }
           } catch {}
         }
       });
 
       // === HEATMAP LAYER ===
-      m.addSource("conflict-heat", {
-        type: "geojson",
-        data: buildGeoJSON(conflictZones),
+      m.addSource('conflict-heat', {
+        type: 'geojson',
+        data: buildGeoJSON(visibleZones),
       });
 
       m.addLayer({
@@ -386,29 +245,13 @@ export default function MapGlobe({
         source: "conflict-heat",
         maxzoom: 8,
         paint: {
-          "heatmap-weight": [
-            "interpolate",
-            ["linear"],
-            ["get", "severity"],
-            1,
-            0.1,
-            5,
-            0.4,
-            8,
-            0.7,
-            10,
-            1,
+          'heatmap-weight': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            1, 0.1, 5, 0.4, 8, 0.7, 10, 1,
           ],
-          "heatmap-intensity": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            0,
-            0.6,
-            4,
-            1,
-            8,
-            1.5,
+          'heatmap-intensity': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.6, 4, 1, 8, 1.5,
           ],
           "heatmap-color": [
             "interpolate",
@@ -429,29 +272,13 @@ export default function MapGlobe({
             1,
             "rgba(127,29,29,0.55)",
           ],
-          "heatmap-radius": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            0,
-            30,
-            3,
-            50,
-            6,
-            70,
-            9,
-            90,
+          'heatmap-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 30, 3, 50, 6, 70, 9, 90,
           ],
-          "heatmap-opacity": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            0,
-            0.7,
-            6,
-            0.5,
-            9,
-            0.2,
+          'heatmap-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.7, 6, 0.5, 9, 0.2,
           ],
         },
       });
@@ -523,7 +350,7 @@ export default function MapGlobe({
         filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
-          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 14, 5, 20, 8, 26, 10, 34],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 10, 5, 16, 8, 22, 10, 30],
           "circle-opacity": 0.15,
           "circle-blur": 1,
         },
@@ -536,7 +363,7 @@ export default function MapGlobe({
         filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-color": ["interpolate", ["linear"], ["get", "severity"], 1, "#facc15", 3, "#f59e0b", 5, "#f97316", 7, "#ef4444", 9, "#991b1b"],
-          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 7, 5, 10, 8, 14, 10, 18],
+          "circle-radius": ["interpolate", ["linear"], ["get", "severity"], 1, 5, 5, 8, 8, 11, 10, 15],
           "circle-opacity": 0.9,
           "circle-stroke-width": 1.5,
           "circle-stroke-color": "rgba(255,255,255,0.25)",
@@ -570,10 +397,10 @@ export default function MapGlobe({
       m.on("mouseenter", "db-clusters", () => { m.getCanvas().style.cursor = "pointer"; });
       m.on("mouseleave", "db-clusters", () => { m.getCanvas().style.cursor = ""; });
 
-      // === CLUSTERED SOURCE FOR CLUSTER INDICATORS ===
-      m.addSource("conflicts-clustered", {
-        type: "geojson",
-        data: buildGeoJSON(conflictZones),
+      // === CLUSTERED SOURCE ===
+      m.addSource('conflicts-clustered', {
+        type: 'geojson',
+        data: buildGeoJSON(visibleZones),
         cluster: true,
         clusterMaxZoom: 5,
         clusterRadius: 80,
@@ -584,60 +411,39 @@ export default function MapGlobe({
         },
       });
 
-      // Cluster circles — outer glow
       m.addLayer({
         id: "cluster-glow",
         type: "circle",
         source: "conflicts-clustered",
         filter: ["has", "point_count"],
         paint: {
-          "circle-color": [
-            "interpolate",
-            ["linear"],
-            ["get", "maxSeverity"],
-            3,
-            "#facc15",
-            5,
-            "#f97316",
-            7,
-            "#ef4444",
-            9,
-            "#991b1b",
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'maxSeverity'],
+            3, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
           ],
-          "circle-radius": ["step", ["get", "point_count"], 28, 4, 36, 8, 44],
-          "circle-opacity": 0.12,
-          "circle-blur": 0.8,
+          'circle-radius': ['step', ['get', 'point_count'], 28, 4, 36, 8, 44],
+          'circle-opacity': 0.12,
+          'circle-blur': 0.8,
         },
       });
 
-      // Cluster circles — core
       m.addLayer({
         id: "clusters",
         type: "circle",
         source: "conflicts-clustered",
         filter: ["has", "point_count"],
         paint: {
-          "circle-color": [
-            "interpolate",
-            ["linear"],
-            ["get", "maxSeverity"],
-            3,
-            "#facc15",
-            5,
-            "#f97316",
-            7,
-            "#ef4444",
-            9,
-            "#991b1b",
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'maxSeverity'],
+            3, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
           ],
-          "circle-radius": ["step", ["get", "point_count"], 18, 4, 24, 8, 30],
-          "circle-opacity": 0.65,
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "rgba(255,255,255,0.15)",
+          'circle-radius': ['step', ['get', 'point_count'], 18, 4, 24, 8, 30],
+          'circle-opacity': 0.65,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': 'rgba(255,255,255,0.15)',
         },
       });
 
-      // Cluster count text
       m.addLayer({
         id: "cluster-count",
         type: "symbol",
@@ -656,11 +462,28 @@ export default function MapGlobe({
         },
       });
 
-      // Click on cluster to zoom in
-      m.on("click", "clusters", (e) => {
-        const features = m.queryRenderedFeatures(e.point, {
-          layers: ["clusters"],
-        });
+      // === ADMIN BORDERS LAYER (for "Conflict Borders" overlay) ===
+      m.addLayer({
+        id: 'conflict-borders',
+        type: 'circle',
+        source: 'conflicts-clustered',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            3, 'rgba(250,204,21,0.15)', 5, 'rgba(249,115,22,0.2)', 7, 'rgba(239,68,68,0.25)', 9, 'rgba(153,27,27,0.3)',
+          ],
+          'circle-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 40, 3, 60, 6, 100, 9, 150,
+          ],
+          'circle-blur': 0.7,
+          'circle-opacity': 0,
+        },
+      });
+
+      m.on('click', 'clusters', (e) => {
+        const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         if (!features.length) return;
         const clusterId = features[0].properties?.cluster_id;
         const source = m.getSource(
@@ -677,19 +500,10 @@ export default function MapGlobe({
         }) as any);
       });
 
-      // Cursor pointer on clusters
-      m.on("mouseenter", "clusters", () => {
-        m.getCanvas().style.cursor = "pointer";
-      });
-      m.on("mouseleave", "clusters", () => {
-        m.getCanvas().style.cursor = "";
-      });
+      m.on('mouseenter', 'clusters', () => { m.getCanvas().style.cursor = 'pointer'; });
+      m.on('mouseleave', 'clusters', () => { m.getCanvas().style.cursor = ''; });
 
-      // Add individual DOM markers
-      addMarkers(m);
-
-      // Update marker visibility based on zoom (hide when clusters show)
-      m.on("zoom", () => {
+      m.on('zoom', () => {
         const zoom = m.getZoom();
         markersRef.current.forEach((marker) => {
           const el = marker.getElement();
@@ -707,22 +521,7 @@ export default function MapGlobe({
       });
     });
 
-    // Navigation controls
-    m.addControl(
-      new mapboxgl.NavigationControl({ showCompass: true }),
-      "bottom-right",
-    );
-
-    // Click on map background to deselect
-    m.on("click", (e) => {
-      const features = m.queryRenderedFeatures(e.point, {
-        layers: ["clusters"],
-      });
-      if (features.length === 0 && selectedIdRef.current) {
-        // Only deselect if not clicking on a cluster or marker
-        // (marker clicks are handled by DOM event listeners)
-      }
-    });
+    // Custom zoom controls rendered via React instead of Mapbox's NavigationControl
 
     map.current = m;
 
@@ -733,26 +532,82 @@ export default function MapGlobe({
     };
   }, []);
 
-  // Update map sources and markers when filtered zones change
+  // Update markers + GeoJSON sources when visibleZones change
   useEffect(() => {
-    if (!map.current || !mapLoaded) return;
+    const m = map.current;
+    if (!m || !mapLoaded) return;
 
-    const heatSource = map.current.getSource("conflict-heat") as
-      | mapboxgl.GeoJSONSource
-      | undefined;
-    if (heatSource) {
-      heatSource.setData(buildGeoJSON(filteredZones));
+    const geoJSON = buildGeoJSON(visibleZones);
+
+    // Update heatmap source
+    const heatSource = m.getSource('conflict-heat') as mapboxgl.GeoJSONSource | undefined;
+    if (heatSource) heatSource.setData(geoJSON);
+
+    // Update cluster source
+    const clusterSource = m.getSource('conflicts-clustered') as mapboxgl.GeoJSONSource | undefined;
+    if (clusterSource) clusterSource.setData(geoJSON);
+
+    // Sync DOM markers
+    const visibleIds = new Set(visibleZones.map(z => z.id));
+
+    // Remove markers that are no longer visible
+    markersRef.current.forEach((marker, id) => {
+      if (!visibleIds.has(id)) {
+        marker.remove();
+        markersRef.current.delete(id);
+      }
+    });
+
+    // Add or update markers
+    visibleZones.forEach(zone => {
+      const existing = markersRef.current.get(zone.id);
+      if (existing) {
+        const el = existing.getElement();
+        const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
+        const color = getSeverityColor(zone.severity);
+        const core = el.querySelector('.conflict-marker-group > div:nth-child(3)') as HTMLElement;
+        if (core) {
+          core.style.background = `radial-gradient(circle at 35% 35%, ${color}ee, ${color}88)`;
+          core.style.borderColor = `${color}bb`;
+          core.style.boxShadow = `0 0 ${size * 0.5}px ${color}50`;
+        }
+        const aura = el.querySelector('.conflict-marker-group > div:nth-child(2)') as HTMLElement;
+        if (aura) {
+          aura.style.background = `${color}25`;
+          aura.style.boxShadow = `0 0 ${size}px ${color}35`;
+        }
+      } else {
+        const el = createMarkerEl(zone);
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([zone.longitude, zone.latitude])
+          .addTo(m);
+        markersRef.current.set(zone.id, marker);
+      }
+    });
+  }, [visibleZones, mapLoaded, createMarkerEl]);
+
+  // Toggle overlay visibility based on filters
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !mapLoaded) return;
+
+    // Heatmap
+    if (m.getLayer('conflict-heatmap')) {
+      m.setLayoutProperty('conflict-heatmap', 'visibility', filters.overlays.heatmap ? 'visible' : 'none');
     }
 
-    const clusteredSource = map.current.getSource("conflicts-clustered") as
-      | mapboxgl.GeoJSONSource
-      | undefined;
-    if (clusteredSource) {
-      clusteredSource.setData(buildGeoJSON(filteredZones));
-    }
+    // Clusters
+    ['cluster-glow', 'clusters', 'cluster-count'].forEach(layerId => {
+      if (m.getLayer(layerId)) {
+        m.setLayoutProperty(layerId, 'visibility', filters.overlays.clusters ? 'visible' : 'none');
+      }
+    });
 
-    addMarkers(map.current);
-  }, [filteredZones, mapLoaded, addMarkers]);
+    // Conflict borders overlay
+    if (m.getLayer('conflict-borders')) {
+      m.setPaintProperty('conflict-borders', 'circle-opacity', filters.overlays.borders ? 0.6 : 0);
+    }
+  }, [filters.overlays, mapLoaded]);
 
   // Fly to selected conflict
   useEffect(() => {
@@ -767,43 +622,19 @@ export default function MapGlobe({
     });
   }, [selectedConflict]);
 
-  // Update DB events on timeline change or filter change
+  // Update DB events on timeline change
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
-    const geojson = buildGeoJSONFromEvents(filteredDbEvents);
+    const filtered = filterEventsByDate(dbEvents);
+    const geojson = buildGeoJSONFromEvents(filtered);
 
     const heatSource = m.getSource("db-events-heat") as mapboxgl.GeoJSONSource;
     if (heatSource) heatSource.setData(geojson);
 
     const circleSource = m.getSource("db-events-circles") as mapboxgl.GeoJSONSource;
     if (circleSource) circleSource.setData(geojson);
-  }, [filteredDbEvents, timelineDate, mapLoaded]);
-
-  // Toggle overlay layer visibility based on filter settings
-  useEffect(() => {
-    if (!map.current || !mapLoaded || !filters) return;
-    const m = map.current;
-
-    // Heatmap layers
-    const heatVis = filters.overlays.heatmap ? "visible" : "none";
-    if (m.getLayer("conflict-heatmap")) m.setLayoutProperty("conflict-heatmap", "visibility", heatVis);
-    if (m.getLayer("db-events-heatmap")) m.setLayoutProperty("db-events-heatmap", "visibility", heatVis);
-
-    // Cluster layers
-    const clusterVis = filters.overlays.clusters ? "visible" : "none";
-    if (m.getLayer("cluster-glow")) m.setLayoutProperty("cluster-glow", "visibility", clusterVis);
-    if (m.getLayer("clusters")) m.setLayoutProperty("clusters", "visibility", clusterVis);
-    if (m.getLayer("cluster-count")) m.setLayoutProperty("cluster-count", "visibility", clusterVis);
-    if (m.getLayer("db-clusters")) m.setLayoutProperty("db-clusters", "visibility", clusterVis);
-    if (m.getLayer("db-cluster-count")) m.setLayoutProperty("db-cluster-count", "visibility", clusterVis);
-
-    // Border layers
-    const borderVis = filters.overlays.borders ? "visible" : "none";
-    if (m.getLayer("admin-0-boundary")) m.setLayoutProperty("admin-0-boundary", "visibility", borderVis);
-    if (m.getLayer("admin-0-boundary-disputed")) m.setLayoutProperty("admin-0-boundary-disputed", "visibility", borderVis);
-    if (m.getLayer("admin-1-boundary")) m.setLayoutProperty("admin-1-boundary", "visibility", borderVis);
-  }, [filters?.overlays, mapLoaded]);
+  }, [dbEvents, timelineDate, mapLoaded]);
 
   // Fly to chat target
   useEffect(() => {
@@ -821,7 +652,6 @@ export default function MapGlobe({
     <div className="absolute inset-0" style={{ top: "56px" }}>
       <div ref={mapContainer} className="w-full h-full" />
 
-      {/* Loading overlay */}
       {!mapLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface z-10">
           <div className="flex flex-col items-center gap-4">
@@ -831,33 +661,54 @@ export default function MapGlobe({
               <div className="absolute inset-4 rounded-full bg-accent/10" />
             </div>
             <div className="flex flex-col items-center gap-1">
-              <span className="text-sm font-display font-medium text-white/80">
-                Initializing Globe
-              </span>
-              <span className="text-2xs font-mono text-muted/60 tracking-wide">
-                LOADING CONFLICT DATA...
-              </span>
+              <span className="text-sm font-display font-medium text-white/80">Initializing Globe</span>
+              <span className="text-2xs font-mono text-muted/60 tracking-wide">LOADING CONFLICT DATA...</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Vignette overlay for depth */}
+      {/* Custom Zoom / Compass Controls */}
+      {mapLoaded && (
+        <div
+          className="z-10 flex flex-col gap-0 rounded-lg overflow-hidden glass border border-white/[0.06]"
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: rightPanelOpen ? 274 : 14,
+          }}
+        >
+          <button
+            onClick={handleZoomIn}
+            className="w-[34px] h-[34px] flex items-center justify-center text-white/70 hover:text-white hover:bg-accent/10 transition-colors border-b border-white/[0.06]"
+            title="Zoom in"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="w-[34px] h-[34px] flex items-center justify-center text-white/70 hover:text-white hover:bg-accent/10 transition-colors border-b border-white/[0.06]"
+            title="Zoom out"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+          <button
+            onClick={handleResetBearing}
+            className="w-[34px] h-[34px] flex items-center justify-center text-white/70 hover:text-white hover:bg-accent/10 transition-colors"
+            title="Reset bearing"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2l2.5 5.5L8 6.5 5.5 7.5 8 2z" fill="#ef4444" opacity="0.8"/><path d="M8 14l-2.5-5.5L8 9.5l2.5-1L8 14z" fill="currentColor" opacity="0.5"/></svg>
+          </button>
+        </div>
+      )}
+
       <div
         className="absolute inset-0 pointer-events-none z-[1]"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, transparent 50%, rgba(6,8,16,0.4) 100%)",
-        }}
+        style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(6,8,16,0.4) 100%)' }}
       />
-
-      {/* Top gradient fade for navbar blend */}
       <div
         className="absolute top-0 left-0 right-0 h-20 pointer-events-none z-[1]"
-        style={{
-          background:
-            "linear-gradient(to bottom, rgba(10,14,23,0.5) 0%, transparent 100%)",
-        }}
+        style={{ background: 'linear-gradient(to bottom, rgba(10,14,23,0.5) 0%, transparent 100%)' }}
       />
     </div>
   );

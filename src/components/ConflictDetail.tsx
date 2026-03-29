@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   X,
   ExternalLink,
@@ -131,31 +131,29 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis>(zone.aiAnalysis);
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Track which zone id we've already fetched AI/news for so we don't
+  // re-fetch on every timeline tick (zone object is replaced but id stays).
+  const fetchedAiForRef = useRef<string | null>(null);
+  const fetchedNewsForRef = useRef<string | null>(null);
+
   useEffect(() => {
+    // If the zone already ships with a cached analysis, use it directly.
     if (zone.aiAnalysis.background) {
       setAiAnalysis(zone.aiAnalysis);
+      fetchedAiForRef.current = zone.id;
       return;
     }
+    // Skip if we already fetched for this exact conflict.
+    if (fetchedAiForRef.current === zone.id) return;
+
     let cancelled = false;
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
     setAiLoading(true);
-    fetch(`${backendUrl}/api/news?country=${encodeURIComponent(zone.country)}`)
+    fetch(
+      `${backendUrl}/api/analysis?country=${encodeURIComponent(zone.country)}`,
+    )
       .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        const articles: { title: string; content?: string }[] =
-          data.articles ?? [];
-        const combinedText = articles
-          .map((a) => a.title + (a.content ? "\n" + a.content : ""))
-          .join("\n\n");
-        return fetch("/api/summarize", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ news: combinedText }),
-        });
-      })
-      .then((res) => (res ? res.json() : null))
       .then((data) => {
         if (cancelled || !data?.summary) return;
         const summary: string = data.summary;
@@ -189,6 +187,7 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
           ),
           outlook: extract("Outlook", []),
         });
+        fetchedAiForRef.current = zone.id;
       })
       .catch((err) => {
         console.error("[fetchAiAnalysis]", err);
@@ -199,13 +198,18 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
     return () => {
       cancelled = true;
     };
-  }, [zone.country, zone.aiAnalysis]);
+  }, [zone.id, zone.country, zone.aiAnalysis.background]);
 
   useEffect(() => {
+    // If the zone already ships with cached news, use it directly.
     if (zone.newsSources && zone.newsSources.length > 0) {
       setNewsSources(zone.newsSources);
+      fetchedNewsForRef.current = zone.id;
       return;
     }
+    // Skip if we already fetched for this exact conflict.
+    if (fetchedNewsForRef.current === zone.id) return;
+
     let cancelled = false;
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
@@ -234,6 +238,7 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
           time: a.seendate ? formatGdeltDate(a.seendate) : "",
         }));
         setNewsSources(sources);
+        fetchedNewsForRef.current = zone.id;
       })
       .catch((err) => {
         console.error("[fetchNews]", err);
@@ -245,17 +250,19 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
     return () => {
       cancelled = true;
     };
-  }, [zone.country, zone.newsSources]);
+  }, [zone.id, zone.country]);
 
   return (
     <div className="fixed left-[340px] top-14 bottom-[88px] w-[400px] z-30 flex flex-col glass border-r border-white/[0.04] animate-slide-up overflow-hidden">
       {/* Header with severity accent */}
       <div
-        className="relative px-5 pt-5 pb-4 border-b border-white/[0.04]"
+        className="relative px-5 pt-5 pb-4 border-b border-white/[0.04] overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${color}12 0%, transparent 60%)`,
         }}
       >
+        {/* Shimmer overlay */}
+        <div className="absolute inset-0 shimmer pointer-events-none" />
         <button
           onClick={onClose}
           className="absolute top-3 right-3 p-1.5 rounded-lg text-muted hover:text-white hover:bg-surface-300/50 transition-colors"

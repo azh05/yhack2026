@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import conflicts, news
+from app.routers import analysis, conflicts, news
 
 
 @asynccontextmanager
@@ -26,6 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(analysis.router, prefix="/api")
 app.include_router(conflicts.router, prefix="/api")
 app.include_router(news.router, prefix="/api")
 

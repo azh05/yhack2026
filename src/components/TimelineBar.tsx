@@ -19,10 +19,10 @@ interface TimelineBarProps {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const SPEED_OPTIONS = [
-  { label: '1×', value: 1 },
-  { label: '2×', value: 2 },
-  { label: '4×', value: 4 },
-  { label: '8×', value: 8 },
+  { label: '1x', value: 1 },
+  { label: '2x', value: 2 },
+  { label: '4x', value: 4 },
+  { label: '8x', value: 8 },
 ];
 
 // Each mode defines how much time one "step" covers and playback rate
@@ -69,7 +69,6 @@ export default function TimelineBar({ onDateChange, eventCount, earliestDate }: 
     const daysSinceStart = Math.floor((d.getTime() - START_DATE.getTime()) / (1000 * 60 * 60 * 24));
     const pct = (daysSinceStart / TOTAL_DAYS) * 100;
     if (pct >= 0 && pct <= 100) {
-      const isFirstOfMonth = d.getDate() <= 7;
       tickMarkers.push({
         label: `${MONTHS[d.getMonth()]} ${d.getFullYear() % 100}`,
         pct,
@@ -83,6 +82,10 @@ export default function TimelineBar({ onDateChange, eventCount, earliestDate }: 
   // Month labels (only show month starts)
   const monthLabels = tickMarkers.filter(t => t.isMonth);
 
+  // Stable ref for onDateChange to avoid re-render loops
+  const onDateChangeRef = useRef(onDateChange);
+  onDateChangeRef.current = onDateChange;
+
   // Playback animation — speed varies by timelapse mode
   useEffect(() => {
     if (!isPlaying) {
@@ -92,31 +95,38 @@ export default function TimelineBar({ onDateChange, eventCount, earliestDate }: 
 
     const mode = TIMELAPSE_MODES.find(m => m.id === timelapseMode) || TIMELAPSE_MODES[2];
     let lastTime = performance.now();
+    let stopped = false;
     const step = (now: number) => {
-      const dt = now - lastTime;
+      if (stopped) return;
+      const dt = Math.min(now - lastTime, 100); // Cap dt to avoid huge jumps
       lastTime = now;
       const increment = (dt / 1000) * mode.playbackPctPerSec * speed;
       setProgress(prev => {
         const next = prev + increment;
         if (next >= 100) {
-          setIsPlaying(false);
+          stopped = true;
+          // Defer stopping playback to avoid setState-in-setState
+          queueMicrotask(() => setIsPlaying(false));
           return 100;
         }
         return next;
       });
-      animRef.current = requestAnimationFrame(step);
+      if (!stopped) {
+        animRef.current = requestAnimationFrame(step);
+      }
     };
 
     animRef.current = requestAnimationFrame(step);
     return () => {
+      stopped = true;
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
   }, [isPlaying, speed, timelapseMode]);
 
-  // Update parent on progress change
+  // Update parent on progress change — use ref to break dependency cycle
   useEffect(() => {
-    onDateChange(getCurrentDate());
-  }, [progress, getCurrentDate, onDateChange]);
+    onDateChangeRef.current(getCurrentDate());
+  }, [progress, getCurrentDate]);
 
   // Drag handling
   const handleSliderClick = (e: React.MouseEvent) => {
@@ -212,8 +222,8 @@ export default function TimelineBar({ onDateChange, eventCount, earliestDate }: 
                   {currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               </div>
-              {/* Handle */}
-              <div className="w-3.5 h-3.5 rounded-full bg-accent border-2 border-white shadow-lg shadow-accent/30 transition-transform hover:scale-125" />
+              {/* Handle with glow trail */}
+              <div className={`w-3.5 h-3.5 rounded-full bg-accent border-2 border-white shadow-lg transition-transform hover:scale-125 ${isPlaying ? 'shadow-accent/60 animate-glow' : 'shadow-accent/30'}`} />
               {/* Vertical line */}
               <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-px h-2 bg-accent/40" />
             </div>
@@ -242,7 +252,7 @@ export default function TimelineBar({ onDateChange, eventCount, earliestDate }: 
           </button>
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/80 hover:bg-accent text-white transition-colors"
+            className={`flex items-center justify-center w-8 h-8 rounded-lg bg-accent/80 hover:bg-accent text-white transition-all ${isPlaying ? 'shadow-lg shadow-accent/40 animate-glow' : ''}`}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
           </button>
