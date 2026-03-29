@@ -9,15 +9,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Core palette
+        // Core palette — uses CSS variables for theme switching
         surface: {
-          DEFAULT: '#0a0e17',
-          50: '#0d1220',
-          100: '#111827',
-          200: '#161e2e',
-          300: '#1e2a3a',
-          400: '#2a3a4e',
+          DEFAULT: 'var(--color-surface)',
+          50: 'var(--color-surface-50)',
+          100: 'var(--color-surface-100)',
+          200: 'var(--color-surface-200)',
+          300: 'var(--color-surface-300)',
+          400: 'var(--color-surface-400)',
         },
+        foreground: 'var(--color-foreground)',
         // Severity scale
         severity: {
           low: '#facc15',
@@ -54,6 +55,16 @@ module.exports = {
         'globe-rotate': 'globeRotate 60s linear infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
         'scan-line': 'scanLine 4s linear infinite',
+        'hero-fade-down': 'heroFadeDown 0.8s ease-out forwards',
+        'hero-fade-up': 'heroFadeUp 0.8s ease-out forwards',
+        'shimmer': 'shimmer 3s linear infinite',
+        'float-up': 'floatUp 3s ease-out infinite',
+        'orb-1': 'orbDrift1 25s ease-in-out infinite',
+        'orb-2': 'orbDrift2 30s ease-in-out infinite',
+        'orb-3': 'orbDrift3 35s ease-in-out infinite',
+        'aurora': 'auroraSweep 40s ease-in-out infinite',
+        'particle': 'particleFloat 8s ease-in-out infinite',
+        'nav-border': 'navBorderGlow 6s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {

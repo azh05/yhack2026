@@ -1,28 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
   Layers,
   Eye,
   EyeOff,
-  Filter,
   X,
   Crosshair,
   Flame,
   Shield,
   Bomb,
-  Users,
   Megaphone,
   Landmark,
   ChevronDown,
   BarChart3,
   Thermometer,
-} from "lucide-react";
-import { EVENT_TYPES, REGIONS } from "@/data/conflicts";
+} from 'lucide-react';
+import { EVENT_TYPES, REGIONS } from '@/data/conflicts';
+import type { MapFilters } from '@/data/filters';
 
 interface RightPanelProps {
   isOpen: boolean;
   onToggle: () => void;
+  filters: MapFilters;
+  onFiltersChange: (filters: MapFilters) => void;
 }
 
 const LAYER_ICONS: Record<string, React.ReactNode> = {
@@ -34,59 +34,45 @@ const LAYER_ICONS: Record<string, React.ReactNode> = {
   strategic: <Landmark className="w-3.5 h-3.5" />,
 };
 
-const OVERLAYS = [
-  {
-    id: "heatmap",
-    label: "Severity Heatmap",
-    icon: <Thermometer className="w-3.5 h-3.5" />,
-    active: true,
-  },
-  {
-    id: "clusters",
-    label: "Event Clusters",
-    icon: <BarChart3 className="w-3.5 h-3.5" />,
-    active: false,
-  },
-  {
-    id: "borders",
-    label: "Conflict Borders",
-    icon: <Landmark className="w-3.5 h-3.5" />,
-    active: false,
-  },
+const OVERLAY_META = [
+  { id: 'heatmap' as const, label: 'Severity Heatmap', icon: <Thermometer className="w-3.5 h-3.5" /> },
+  { id: 'clusters' as const, label: 'Event Clusters', icon: <BarChart3 className="w-3.5 h-3.5" /> },
+  { id: 'borders' as const, label: 'Conflict Borders', icon: <Landmark className="w-3.5 h-3.5" /> },
 ];
 
-export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
-  const [activeTypes, setActiveTypes] = useState<Set<string>>(
-    new Set(EVENT_TYPES.map((t) => t.id)),
-  );
-  const [selectedRegion, setSelectedRegion] = useState("All Regions");
-  const [overlays, setOverlays] = useState(OVERLAYS);
-  const [severityRange, setSeverityRange] = useState([1, 10]);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setLastUpdated(new Date());
-  }, []);
-
+export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange }: RightPanelProps) {
   const toggleType = (id: string) => {
-    setActiveTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+    const next = new Set(filters.activeTypes);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onFiltersChange({ ...filters, activeTypes: next });
+  };
+
+  const setRegion = (region: string) => {
+    onFiltersChange({ ...filters, selectedRegion: region });
+  };
+
+  const toggleOverlay = (id: 'heatmap' | 'clusters' | 'borders') => {
+    onFiltersChange({
+      ...filters,
+      overlays: { ...filters.overlays, [id]: !filters.overlays[id] },
     });
   };
 
-  const toggleOverlay = (id: string) => {
-    setOverlays((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, active: !o.active } : o)),
-    );
+  const setSeverityMin = (val: number) => {
+    onFiltersChange({ ...filters, severityRange: [val, filters.severityRange[1]] });
+  };
+
+  const setSeverityMax = (val: number) => {
+    onFiltersChange({ ...filters, severityRange: [filters.severityRange[0], val] });
   };
 
   if (!isOpen) return null;
 
   return (
-    <aside className="fixed right-0 top-14 bottom-[88px] w-[260px] z-30 flex flex-col glass border-l border-white/[0.04] animate-slide-left">
+    <aside className="fixed right-0 top-14 bottom-[88px] w-[260px] z-30 flex flex-col glass border-l border-white/[0.04] animate-slide-left overflow-hidden">
+      {/* Top accent glow */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-glow/30 to-transparent animate-pulse-slow" />
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
@@ -111,14 +97,12 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
           </label>
           <div className="relative">
             <select
-              value={selectedRegion}
-              onChange={(e) => setSelectedRegion(e.target.value)}
-              className="w-full appearance-none px-3 py-2 rounded-lg bg-surface-200/80 border border-white/[0.06] text-xs text-white/80 outline-none focus:border-accent/30 transition-colors cursor-pointer"
+              value={filters.selectedRegion}
+              onChange={(e) => setRegion(e.target.value)}
+              className="w-full appearance-none px-3 py-2 rounded-lg bg-surface-200 border border-white/[0.06] text-xs text-white/80 outline-none focus:border-accent/30 transition-colors cursor-pointer"
             >
-              {REGIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
+              {REGIONS.map(r => (
+                <option key={r} value={r} className="bg-[#161e2e] text-white/90">{r}</option>
               ))}
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted/50 pointer-events-none" />
@@ -131,8 +115,8 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
             Event Types
           </label>
           <div className="space-y-1">
-            {EVENT_TYPES.map((type) => {
-              const isActive = activeTypes.has(type.id);
+            {EVENT_TYPES.map(type => {
+              const isActive = filters.activeTypes.has(type.id);
               return (
                 <button
                   key={type.id}
@@ -177,18 +161,41 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
             Severity Range
           </label>
           <div className="px-1">
-            {/* Severity gradient bar */}
-            <div
-              className="h-2 rounded-full overflow-hidden mb-2"
+            <div className="h-2 rounded-full overflow-hidden mb-3"
               style={{
                 background:
                   "linear-gradient(to right, #facc15, #f97316, #ef4444, #991b1b, #7f1d1d)",
               }}
             />
-            <div className="flex justify-between text-2xs font-mono text-muted/40">
-              <span>1 Low</span>
-              <span>5 High</span>
-              <span>10 Extreme</span>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-2xs font-mono text-muted/40 mb-1 block">Min</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={filters.severityRange[0]}
+                  onChange={(e) => setSeverityMin(Number(e.target.value))}
+                  className="w-full accent-orange-500 h-1 bg-surface-300/60 rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-2xs font-mono text-muted/40 mb-1 block">Max</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={filters.severityRange[1]}
+                  onChange={(e) => setSeverityMax(Number(e.target.value))}
+                  className="w-full accent-red-500 h-1 bg-surface-300/60 rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+            <div className="flex justify-between text-2xs font-mono text-muted/50 mt-1">
+              <span>{filters.severityRange[0]}</span>
+              <span>{filters.severityRange[1]}</span>
             </div>
           </div>
         </div>
@@ -199,27 +206,30 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
             Overlays
           </label>
           <div className="space-y-1">
-            {overlays.map((overlay) => (
-              <button
-                key={overlay.id}
-                onClick={() => toggleOverlay(overlay.id)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200 ${
-                  overlay.active
-                    ? "bg-accent/10 text-accent-glow/90 border border-accent/15"
-                    : "text-muted/50 hover:text-muted-light hover:bg-surface-300/20 border border-transparent"
-                }`}
-              >
-                {overlay.icon}
-                <span>{overlay.label}</span>
-                <div className="ml-auto">
-                  {overlay.active ? (
-                    <Eye className="w-3 h-3 text-accent-glow/40" />
-                  ) : (
-                    <EyeOff className="w-3 h-3 text-muted/20" />
-                  )}
-                </div>
-              </button>
-            ))}
+            {OVERLAY_META.map(overlay => {
+              const active = filters.overlays[overlay.id];
+              return (
+                <button
+                  key={overlay.id}
+                  onClick={() => toggleOverlay(overlay.id)}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200 ${
+                    active
+                      ? 'bg-accent/10 text-accent-glow/90 border border-accent/15'
+                      : 'text-muted/50 hover:text-muted-light hover:bg-surface-300/20 border border-transparent'
+                  }`}
+                >
+                  {overlay.icon}
+                  <span>{overlay.label}</span>
+                  <div className="ml-auto">
+                    {active ? (
+                      <Eye className="w-3 h-3 text-accent-glow/40" />
+                    ) : (
+                      <EyeOff className="w-3 h-3 text-muted/20" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -227,9 +237,8 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
       {/* Data Source Attribution */}
       <div className="px-4 py-2.5 border-t border-white/[0.04]">
         <p className="text-2xs text-muted/30 font-mono leading-relaxed">
-          Data: ACLED · GDELT · CAST
-          <br />
-          Updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : "..."}
+          Data: ACLED &middot; GDELT &middot; CAST<br />
+          Updated: 15 min ago
         </p>
       </div>
     </aside>
