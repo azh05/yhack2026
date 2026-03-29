@@ -5,10 +5,12 @@ import { NextRequest, NextResponse } from "next/server";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
-async function geocode(placeName: string): Promise<{ lat: number; lng: number } | null> {
+async function geocode(
+  placeName: string,
+): Promise<{ lat: number; lng: number } | null> {
   try {
     const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(placeName)}.json?access_token=${MAPBOX_TOKEN}&limit=1&types=country,region,place,locality`
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(placeName)}.json?access_token=${MAPBOX_TOKEN}&limit=1&types=country,region,place,locality`,
     );
     const data = await res.json();
     if (data.features && data.features.length > 0) {
@@ -21,13 +23,21 @@ async function geocode(placeName: string): Promise<{ lat: number; lng: number } 
 
 async function queryConflictData(countries: string[]): Promise<string> {
   if (countries.length === 0) return "";
+  if (!supabase) {
+    console.warn(
+      "[chat] Supabase not configured — skipping conflict data query",
+    );
+    return "";
+  }
 
   const results: string[] = [];
 
   for (const country of countries.slice(0, 5)) {
     const { data: events } = await supabase
       .from("conflict_events")
-      .select("event_date, event_type, admin1, fatalities, severity_score, notes")
+      .select(
+        "event_date, event_type, admin1, fatalities, severity_score, notes",
+      )
       .ilike("country", country)
       .gt("fatalities", 0)
       .order("event_date", { ascending: false })
@@ -35,11 +45,21 @@ async function queryConflictData(countries: string[]): Promise<string> {
 
     if (events && events.length > 0) {
       const totalFat = events.reduce((s, e) => s + e.fatalities, 0);
-      const avgSev = (events.reduce((s, e) => s + (e.severity_score || 0), 0) / events.length).toFixed(1);
-      results.push(`${country}: ${events.length} recent violent events, ${totalFat} fatalities, avg severity ${avgSev}`);
-      results.push(events.slice(0, 5).map(e =>
-        `  [${e.event_date}] ${e.event_type} in ${e.admin1 || country}: ${e.fatalities} fatalities`
-      ).join("\n"));
+      const avgSev = (
+        events.reduce((s, e) => s + (e.severity_score || 0), 0) / events.length
+      ).toFixed(1);
+      results.push(
+        `${country}: ${events.length} recent violent events, ${totalFat} fatalities, avg severity ${avgSev}`,
+      );
+      results.push(
+        events
+          .slice(0, 5)
+          .map(
+            (e) =>
+              `  [${e.event_date}] ${e.event_type} in ${e.admin1 || country}: ${e.fatalities} fatalities`,
+          )
+          .join("\n"),
+      );
     } else {
       results.push(`${country}: No recent violent events found in database`);
     }
@@ -52,19 +72,25 @@ export async function POST(req: NextRequest) {
   const { message, history } = await req.json();
 
   if (!message || typeof message !== "string") {
-    return NextResponse.json({ error: "Missing 'message' field" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing 'message' field" },
+      { status: 400 },
+    );
   }
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   // Step 1: Ask the model what countries are relevant to the query
   const extractResult = await model.generateContent(
-    `Extract the country names mentioned or implied in this user query about conflicts. Return ONLY a JSON array of country names, nothing else. If no specific country, return the 5 most relevant conflict countries for the topic.\n\nQuery: "${message}"`
+    `Extract the country names mentioned or implied in this user query about conflicts. Return ONLY a JSON array of country names, nothing else. If no specific country, return the 5 most relevant conflict countries for the topic.\n\nQuery: "${message}"`,
   );
 
   let countries: string[] = [];
   try {
-    const raw = extractResult.response.text().replace(/```json?|```/g, "").trim();
+    const raw = extractResult.response
+      .text()
+      .replace(/```json?|```/g, "")
+      .trim();
     countries = JSON.parse(raw);
   } catch {
     countries = ["Ukraine", "Sudan", "Palestine", "Syria", "Myanmar"];
@@ -89,15 +115,24 @@ Capabilities:
 
 Keep responses concise (2-4 paragraphs). Be factual and neutral.`;
 
-  const chatHistory = (history || []).map((msg: { role: string; text: string }) => ({
-    role: msg.role === "assistant" ? "model" : "user",
-    parts: [{ text: msg.text }],
-  }));
+  const chatHistory = (history || []).map(
+    (msg: { role: string; text: string }) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.text }],
+    }),
+  );
 
   const chat = model.startChat({
     history: [
       { role: "user", parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Understood. I'm War AI with access to ACLED data and general conflict knowledge. I can answer questions and navigate the globe." }] },
+      {
+        role: "model",
+        parts: [
+          {
+            text: "Understood. I'm War AI with access to ACLED data and general conflict knowledge. I can answer questions and navigate the globe.",
+          },
+        ],
+      },
       ...chatHistory,
     ],
   });
@@ -112,11 +147,18 @@ Keep responses concise (2-4 paragraphs). Be factual and neutral.`;
     const placeName = cmdMatch[1];
     const coords = await geocode(placeName);
     if (coords) {
-      mapCommand = { action: "flyTo", country: placeName, lat: coords.lat, lng: coords.lng };
+      mapCommand = {
+        action: "flyTo",
+        country: placeName,
+        lat: coords.lat,
+        lng: coords.lng,
+      };
     }
   }
 
-  const cleanResponse = response.replace(/\{"action":"flyTo".*?\}\n?/g, "").trim();
+  const cleanResponse = response
+    .replace(/\{"action":"flyTo".*?\}\n?/g, "")
+    .trim();
 
   return NextResponse.json({ response: cleanResponse, mapCommand });
 }
