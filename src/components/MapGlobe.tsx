@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { CONFLICT_ZONES, getSeverityColor, type ConflictZone } from '@/data/conflicts';
+import { CONFLICT_ZONES, type ConflictZone } from '@/data/conflicts';
 import { getConflictsAtDate } from '@/data/timeline';
 import type { MapFilters } from '@/data/filters';
 import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from '@/lib/useConflictEvents';
@@ -63,7 +63,6 @@ export default function MapGlobe({
 }: MapGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
   const selectedIdRef = useRef<string | null>(null);
 
@@ -87,58 +86,6 @@ export default function MapGlobe({
       return true;
     });
   }, [timelineDate, filters, conflictZones]);
-
-  const createMarkerEl = useCallback((zone: ConflictZone) => {
-    const el = document.createElement('div');
-    const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
-    const color = getSeverityColor(zone.severity);
-
-      el.innerHTML = `
-      <div style="position:relative; width:${size}px; height:${size}px; cursor:pointer;" class="conflict-marker-group">
-        <div style="
-          position:absolute; inset:-6px; border-radius:50%;
-          background:${color}15;
-          animation: markerPulse ${2.2 + Math.random() * 0.8}s ease-in-out infinite;
-        "></div>
-        <div style="
-          position:absolute; inset:-3px; border-radius:50%;
-          background:${color}25;
-          box-shadow: 0 0 ${size}px ${color}35;
-        "></div>
-        <div style="
-          position:absolute; inset:0; border-radius:50%;
-          background: radial-gradient(circle at 35% 35%, ${color}ee, ${color}88);
-          border: 1.5px solid ${color}bb;
-          box-shadow: 0 0 ${size * 0.5}px ${color}50;
-        "></div>
-        ${
-          zone.severity >= 6
-            ? `
-          <div style="
-            position:absolute; top:${size + 6}px; left:50%; transform:translateX(-50%);
-            white-space:nowrap; font-size:9px; font-family:'JetBrains Mono',monospace;
-            color:${color}dd; text-shadow: 0 1px 4px rgba(0,0,0,0.9);
-            letter-spacing:0.05em; font-weight:500;
-          ">${zone.fatalities30d.toLocaleString()}</div>
-        `
-            : ""
-        }
-      </div>
-    `;
-
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        onConflictSelect(zone);
-      });
-
-    el.addEventListener('mouseenter', () => {
-      el.title = `${zone.name} — Severity ${zone.severity.toFixed(1)}`;
-    });
-
-      return el;
-    },
-    [onConflictSelect],
-  );
 
   // Initialize map
   useEffect(() => {
@@ -503,88 +450,29 @@ export default function MapGlobe({
       m.on('mouseenter', 'clusters', () => { m.getCanvas().style.cursor = 'pointer'; });
       m.on('mouseleave', 'clusters', () => { m.getCanvas().style.cursor = ''; });
 
-      m.on('zoom', () => {
-        const zoom = m.getZoom();
-        markersRef.current.forEach((marker) => {
-          const el = marker.getElement();
-          if (zoom < 3) {
-            el.style.opacity = "0";
-            el.style.pointerEvents = "none";
-          } else if (zoom < 4.5) {
-            el.style.opacity = "0.6";
-            el.style.pointerEvents = "auto";
-          } else {
-            el.style.opacity = "1";
-            el.style.pointerEvents = "auto";
-          }
-        });
-      });
     });
-
-    // Custom zoom controls rendered via React instead of Mapbox's NavigationControl
 
     map.current = m;
 
     return () => {
-      markersRef.current.forEach((marker) => marker.remove());
       m.remove();
       map.current = null;
     };
   }, []);
 
-  // Update markers + GeoJSON sources when visibleZones change
+  // Update GeoJSON sources when visibleZones change
   useEffect(() => {
     const m = map.current;
     if (!m || !mapLoaded) return;
 
     const geoJSON = buildGeoJSON(visibleZones);
 
-    // Update heatmap source
     const heatSource = m.getSource('conflict-heat') as mapboxgl.GeoJSONSource | undefined;
     if (heatSource) heatSource.setData(geoJSON);
 
-    // Update cluster source
     const clusterSource = m.getSource('conflicts-clustered') as mapboxgl.GeoJSONSource | undefined;
     if (clusterSource) clusterSource.setData(geoJSON);
-
-    // Sync DOM markers
-    const visibleIds = new Set(visibleZones.map(z => z.id));
-
-    // Remove markers that are no longer visible
-    markersRef.current.forEach((marker, id) => {
-      if (!visibleIds.has(id)) {
-        marker.remove();
-        markersRef.current.delete(id);
-      }
-    });
-
-    // Add or update markers
-    visibleZones.forEach(zone => {
-      const existing = markersRef.current.get(zone.id);
-      if (existing) {
-        const el = existing.getElement();
-        const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
-        const color = getSeverityColor(zone.severity);
-        const core = el.querySelector('.conflict-marker-group > div:nth-child(3)') as HTMLElement;
-        if (core) {
-          core.style.background = `radial-gradient(circle at 35% 35%, ${color}ee, ${color}88)`;
-          core.style.borderColor = `${color}bb`;
-          core.style.boxShadow = `0 0 ${size * 0.5}px ${color}50`;
-        }
-        const aura = el.querySelector('.conflict-marker-group > div:nth-child(2)') as HTMLElement;
-        if (aura) {
-          aura.style.background = `${color}25`;
-          aura.style.boxShadow = `0 0 ${size}px ${color}35`;
-        }
-      } else {
-        const el = createMarkerEl(zone);
-        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([zone.longitude, zone.latitude])
-          .addTo(m);
-        markersRef.current.set(zone.id, marker);
-      }
-    });
-  }, [visibleZones, mapLoaded, createMarkerEl]);
+  }, [visibleZones, mapLoaded]);
 
   // Toggle overlay visibility based on filters
   useEffect(() => {
