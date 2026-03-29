@@ -27,9 +27,10 @@ interface NavbarProps {
   onSignInClick?: () => void;
   onSignOut?: () => void;
   onConflictSelect?: (zone: ConflictZone) => void;
+  dbEventCount?: number;
 }
 
-export default function Navbar({ searchQuery = '', onSearchChange, conflictZones, isLoading, user, onSignInClick, onSignOut, onConflictSelect }: NavbarProps) {
+export default function Navbar({ searchQuery = '', onSearchChange, conflictZones, isLoading, user, onSignInClick, onSignOut, onConflictSelect, dbEventCount }: NavbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -75,6 +76,7 @@ export default function Navbar({ searchQuery = '', onSearchChange, conflictZones
     (z) => z.trend === "escalating",
   ).length;
   const countriesCount = new Set(conflictZones.map((z) => z.country)).size;
+  const totalEvents = conflictZones.reduce((s, z) => s + z.eventCount, 0);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 glass border-b border-white/[0.04]">
@@ -120,9 +122,9 @@ export default function Navbar({ searchQuery = '', onSearchChange, conflictZones
           <div className="flex items-center gap-4 text-2xs font-mono text-muted-light/50">
             <span>
               <span className="text-white/80 font-medium tabular-nums">
-                {isLoading ? "..." : activeConflicts}
+                {isLoading ? "..." : countriesCount}
               </span>{" "}
-              active
+              countries
             </span>
             <span className="text-white/[0.07]">|</span>
             <span>
@@ -130,13 +132,6 @@ export default function Navbar({ searchQuery = '', onSearchChange, conflictZones
                 {isLoading ? "..." : escalatingCount}
               </span>{" "}
               escalating
-            </span>
-            <span className="text-white/[0.07]">|</span>
-            <span>
-              <span className="text-white/80 font-medium tabular-nums">
-                {isLoading ? "..." : countriesCount}
-              </span>{" "}
-              countries
             </span>
           </div>
         </div>

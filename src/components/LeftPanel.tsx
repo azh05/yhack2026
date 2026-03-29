@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -10,6 +10,7 @@ import {
   MapPin,
   ChevronRight,
   X,
+  Eye,
 } from 'lucide-react';
 import {
   getSeverityColor,
@@ -28,6 +29,8 @@ interface LeftPanelProps {
   searchQuery?: string;
   conflictZones: ConflictZone[];
   isLoading?: boolean;
+  watchlist?: string[];
+  isLoggedIn?: boolean;
 }
 
 function TrendIcon({ trend }: { trend: string }) {
@@ -55,7 +58,8 @@ function TrendBadge({ trend }: { trend: string }) {
   );
 }
 
-export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict, timelineDate, filters, searchQuery = '', conflictZones, isLoading = false }: LeftPanelProps) {
+export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict, timelineDate, filters, searchQuery = '', conflictZones, isLoading = false, watchlist = [], isLoggedIn = false }: LeftPanelProps) {
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
 
   // Use backend conflictZones if available, otherwise fall back to local data
   const sortedZones = useMemo(() => {
@@ -81,6 +85,12 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
         }
         return true;
       })
+      .filter(zone => {
+        if (showWatchlistOnly && watchlist.length > 0) {
+          return watchlist.includes(zone.country);
+        }
+        return true;
+      })
       .sort((a, b) => b.severity - a.severity);
   }, [timelineDate, filters, searchQuery, conflictZones]);
 
@@ -92,7 +102,7 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-severity-moderate" />
           <h2 className="text-sm font-display font-semibold text-white">
-            Active Conflicts
+            {showWatchlistOnly ? 'My Watchlist' : 'Active Conflicts'}
           </h2>
           <span className="px-1.5 py-0.5 rounded bg-severity-high/10 text-severity-high text-2xs font-mono">
             {sortedZones.length}
@@ -103,6 +113,37 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
           className="p-1 rounded-md text-muted hover:text-white hover:bg-surface-300/50 transition-colors"
         >
           <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Tabs: All / Watchlist */}
+      <div className="flex px-3 pt-2 gap-1">
+        <button
+          onClick={() => setShowWatchlistOnly(false)}
+          className={`flex-1 py-1.5 rounded-md text-2xs font-mono transition-colors ${
+            !showWatchlistOnly
+              ? 'bg-surface-300/60 text-white/80'
+              : 'text-muted/40 hover:text-muted-light'
+          }`}
+        >
+          All ({conflictZones.length})
+        </button>
+        <button
+          onClick={() => {
+            if (!isLoggedIn) return;
+            setShowWatchlistOnly(true);
+          }}
+          title={!isLoggedIn ? 'Sign in to use your watchlist' : `${watchlist.length} watched countries`}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-2xs font-mono transition-colors ${
+            showWatchlistOnly
+              ? 'bg-accent/20 text-accent-glow border border-accent/20'
+              : !isLoggedIn
+                ? 'text-muted/20 cursor-not-allowed'
+                : 'text-muted/40 hover:text-muted-light'
+          }`}
+        >
+          <Eye className="w-3 h-3" />
+          Watchlist {isLoggedIn ? `(${watchlist.length})` : ''}
         </button>
       </div>
 

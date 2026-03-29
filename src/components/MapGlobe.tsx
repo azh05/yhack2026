@@ -454,7 +454,40 @@ export default function MapGlobe({
 
     map.current = m;
 
+    // Idle auto-rotate — starts after 15s of no interaction
+    let idleTimer: ReturnType<typeof setTimeout>;
+    let spinInterval: ReturnType<typeof setInterval>;
+    let isSpinning = false;
+
+    const startSpin = () => {
+      if (isSpinning) return;
+      isSpinning = true;
+      spinInterval = setInterval(() => {
+        if (!map.current) return;
+        const center = map.current.getCenter();
+        map.current.setCenter([center.lng + 0.03, center.lat]);
+      }, 16);
+    };
+
+    const stopSpin = () => {
+      isSpinning = false;
+      clearInterval(spinInterval);
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(startSpin, 15000);
+    };
+
+    // Start idle timer
+    idleTimer = setTimeout(startSpin, 15000);
+
+    // Stop on any interaction
+    m.on('mousedown', stopSpin);
+    m.on('touchstart', stopSpin);
+    m.on('wheel', stopSpin);
+    m.on('movestart', () => { if (!isSpinning) stopSpin(); });
+
     return () => {
+      clearTimeout(idleTimer);
+      clearInterval(spinInterval);
       m.remove();
       map.current = null;
     };

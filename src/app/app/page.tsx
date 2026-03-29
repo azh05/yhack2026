@@ -61,7 +61,7 @@ export default function AppPage() {
   const { events: dbEvents, earliestDate, loading: eventsLoading } = useConflictEvents(timelineDate, needsAllTypes);
   const conflictZones = useMemo(() => buildZonesFromEvents(dbEvents), [dbEvents]);
   const { user, signUp, signIn, signOut } = useAuth();
-  const { isWatching, addCountry, removeCountry } = useWatchlist(user?.id);
+  const { watchlist, isWatching, addCountry, removeCountry } = useWatchlist(user?.id);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -115,6 +115,7 @@ export default function AppPage() {
           handleConflictSelect(zone);
           setFlyToTarget({ lat: zone.latitude, lng: zone.longitude });
         }}
+        dbEventCount={dbEvents.length}
       />
 
       <AuthModal
@@ -144,6 +145,8 @@ export default function AppPage() {
         searchQuery={searchQuery}
         conflictZones={conflictZones}
         isLoading={eventsLoading}
+        watchlist={watchlist}
+        isLoggedIn={!!user}
       />
 
       {selectedConflict && leftPanelOpen && (
