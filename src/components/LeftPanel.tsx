@@ -1,9 +1,6 @@
 'use client';
 
-import { useState } from 'react';
 import {
-  MessageSquare,
-  Send,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -11,14 +8,11 @@ import {
   Skull,
   MapPin,
   ChevronRight,
-  Sparkles,
   X,
-  Info,
 } from 'lucide-react';
 import {
   CONFLICT_ZONES,
   getSeverityColor,
-  getSeverityLabel,
   type ConflictZone,
 } from '@/data/conflicts';
 
@@ -50,28 +44,7 @@ function TrendBadge({ trend }: { trend: string }) {
 }
 
 export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict }: LeftPanelProps) {
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<{ role: string; text: string }[]>([
-    {
-      role: 'assistant',
-      text: 'Welcome to ConflictLens AI. Ask me about any conflict zone, region safety, or current events. I can also navigate the map for you.',
-    },
-  ]);
-
   const sortedZones = [...CONFLICT_ZONES].sort((a, b) => b.severity - a.severity);
-
-  const handleChatSend = () => {
-    if (!chatInput.trim()) return;
-    setChatMessages(prev => [
-      ...prev,
-      { role: 'user', text: chatInput },
-      {
-        role: 'assistant',
-        text: `Analyzing "${chatInput}"... I'll search ACLED and GDELT data sources to provide a comprehensive briefing. This feature will use the Claude API for real-time conflict intelligence.`,
-      },
-    ]);
-    setChatInput('');
-  };
 
   if (!isOpen) return null;
 
@@ -112,7 +85,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
                 }`}
               >
                 <div className="flex items-start gap-2.5">
-                  {/* Severity dot */}
                   <div className="mt-1 shrink-0">
                     <div
                       className="w-2.5 h-2.5 rounded-full"
@@ -123,7 +95,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
                     />
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[13px] font-medium text-white/90 truncate group-hover:text-white transition-colors">
@@ -166,50 +137,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
         </div>
       </div>
 
-      {/* AI Chatbot Section */}
-      <div className="border-t border-white/[0.04]">
-        {/* Chat messages (minimal) */}
-        <div className="max-h-32 overflow-y-auto p-3 space-y-2">
-          {chatMessages.slice(-3).map((msg, i) => (
-            <div
-              key={i}
-              className={`text-2xs leading-relaxed ${
-                msg.role === 'assistant' ? 'text-muted-light/70' : 'text-accent-glow/90'
-              }`}
-            >
-              {msg.role === 'assistant' && (
-                <Sparkles className="w-3 h-3 text-accent-glow/50 inline mr-1 -mt-0.5" />
-              )}
-              {msg.text}
-            </div>
-          ))}
-        </div>
-
-        {/* Input */}
-        <div className="p-3 pt-0">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-200/80 border border-white/[0.06] focus-within:border-accent/30 transition-colors">
-            <MessageSquare className="w-3.5 h-3.5 text-muted/50 shrink-0" />
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
-              placeholder="Ask ConflictLens AI..."
-              className="flex-1 bg-transparent text-xs text-white/90 placeholder:text-muted/40 outline-none font-body"
-            />
-            <button
-              onClick={handleChatSend}
-              disabled={!chatInput.trim()}
-              className="p-1.5 rounded-lg bg-accent/80 text-white hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Send className="w-3 h-3" />
-            </button>
-          </div>
-          <p className="text-center text-2xs text-muted/30 mt-1.5 font-mono">
-            Powered by Claude AI · ACLED + GDELT data
-          </p>
-        </div>
-      </div>
     </aside>
   );
 }

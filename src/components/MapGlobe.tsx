@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { CONFLICT_ZONES, getSeverityColor, getSeverityLabel, type ConflictZone } from '@/data/conflicts';
+import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from '@/lib/useConflictEvents';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'YOUR_MAPBOX_TOKEN_HERE';
 
@@ -11,6 +12,8 @@ interface MapGlobeProps {
   onConflictSelect: (zone: ConflictZone | null) => void;
   selectedConflict: ConflictZone | null;
   timelineDate: Date;
+  dbEvents: DBEvent[];
+  flyToTarget?: { lat: number; lng: number } | null;
 }
 
 function buildGeoJSON() {
@@ -35,7 +38,7 @@ function buildGeoJSON() {
   };
 }
 
-export default function MapGlobe({ onConflictSelect, selectedConflict, timelineDate }: MapGlobeProps) {
+export default function MapGlobe({ onConflictSelect, selectedConflict, timelineDate, dbEvents, flyToTarget }: MapGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -87,7 +90,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       onConflictSelect(zone);
     });
 
-    // Hover tooltip
     el.addEventListener('mouseenter', () => {
       el.title = `${zone.name} — Severity ${zone.severity.toFixed(1)}`;
     });
@@ -144,7 +146,7 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         }
       });
 
-      // Admin boundaries - brighter for visibility
+      // Admin boundaries
       if (m.getLayer('admin-0-boundary')) {
         m.setPaintProperty('admin-0-boundary', 'line-color', '#2a4a6f');
         m.setPaintProperty('admin-0-boundary', 'line-opacity', 0.6);
@@ -159,30 +161,26 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         m.setPaintProperty('admin-1-boundary', 'line-opacity', 0.3);
       }
 
-      // --- FIX: Brighten map labels for readability ---
+      // --- Brighten map labels ---
       m.getStyle().layers.forEach(layer => {
         if (layer.type === 'symbol') {
           const id = layer.id;
           try {
             if (id.includes('country-label')) {
-              // Country names - bright and prominent
               m.setPaintProperty(id, 'text-color', '#c8d6e5');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 2);
               m.setPaintProperty(id, 'text-halo-blur', 1);
             } else if (id.includes('state-label') || id.includes('settlement-major')) {
-              // State/province and major city names - clearly visible
               m.setPaintProperty(id, 'text-color', '#9bb3cc');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 1.5);
               m.setPaintProperty(id, 'text-halo-blur', 0.5);
             } else if (id.includes('settlement') || id.includes('place-label')) {
-              // Other settlements - subtly visible
               m.setPaintProperty(id, 'text-color', '#7a96b0');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 1.5);
             } else if (id.includes('label')) {
-              // All other labels (water, POIs, etc.)
               m.setPaintProperty(id, 'text-color', '#5a7a94');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 1);
@@ -191,7 +189,7 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         }
       });
 
-      // === HEATMAP LAYER ===
+      // === HEATMAP LAYER (uses DB events source) ===
       m.addSource('conflict-heat', {
         type: 'geojson',
         data: buildGeoJSON(),
@@ -205,16 +203,11 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         paint: {
           'heatmap-weight': [
             'interpolate', ['linear'], ['get', 'severity'],
-            1, 0.1,
-            5, 0.4,
-            8, 0.7,
-            10, 1,
+            1, 0.1, 5, 0.4, 8, 0.7, 10, 1,
           ],
           'heatmap-intensity': [
             'interpolate', ['linear'], ['zoom'],
-            0, 0.6,
-            4, 1,
-            8, 1.5,
+            0, 0.6, 4, 1, 8, 1.5,
           ],
           'heatmap-color': [
             'interpolate', ['linear'], ['heatmap-density'],
@@ -228,21 +221,187 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
           ],
           'heatmap-radius': [
             'interpolate', ['linear'], ['zoom'],
-            0, 30,
-            3, 50,
-            6, 70,
-            9, 90,
+            0, 30, 3, 50, 6, 70, 9, 90,
           ],
           'heatmap-opacity': [
             'interpolate', ['linear'], ['zoom'],
-            0, 0.7,
-            6, 0.5,
-            9, 0.2,
+            0, 0.7, 6, 0.5, 9, 0.2,
           ],
         },
       });
 
-      // === CLUSTERED SOURCE FOR CLUSTER INDICATORS ===
+      // === DB EVENTS SOURCE (for timeline-filtered heatmap) ===
+      m.addSource('db-events-heat', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      m.addLayer({
+        id: 'db-events-heatmap',
+        type: 'heatmap',
+        source: 'db-events-heat',
+        maxzoom: 8,
+        paint: {
+          'heatmap-weight': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            1, 0.1, 5, 0.4, 8, 0.7, 10, 1,
+          ],
+          'heatmap-intensity': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.8, 4, 1.2, 8, 1.8,
+          ],
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(0,0,0,0)',
+            0.1, 'rgba(250,204,21,0.1)',
+            0.3, 'rgba(249,115,22,0.2)',
+            0.5, 'rgba(239,68,68,0.3)',
+            0.7, 'rgba(220,38,38,0.4)',
+            0.9, 'rgba(153,27,27,0.5)',
+            1, 'rgba(127,29,29,0.6)',
+          ],
+          'heatmap-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 25, 3, 45, 6, 65, 9, 85,
+          ],
+          'heatmap-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.7, 6, 0.5, 9, 0.2,
+          ],
+        },
+      });
+
+      // === DB EVENTS CIRCLES (GPU-rendered, handles thousands) ===
+      m.addSource('db-events-circles', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+        cluster: true,
+        clusterMaxZoom: 8,
+        clusterRadius: 50,
+        clusterProperties: {
+          maxSeverity: ['max', ['get', 'severity']],
+          totalFatalities: ['+', ['get', 'fatalities30d']],
+        },
+      });
+
+      // DB cluster circles
+      m.addLayer({
+        id: 'db-clusters',
+        type: 'circle',
+        source: 'db-events-circles',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'maxSeverity'],
+            3, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
+          ],
+          'circle-radius': ['step', ['get', 'point_count'], 14, 5, 20, 20, 28, 50, 36],
+          'circle-opacity': 0.7,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': 'rgba(255,255,255,0.15)',
+        },
+      });
+
+      // DB cluster count labels
+      m.addLayer({
+        id: 'db-cluster-count',
+        type: 'symbol',
+        source: 'db-events-circles',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+          'text-size': 11,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.5)',
+          'text-halo-width': 1,
+        },
+      });
+
+      // DB event outer glow (unclustered)
+      m.addLayer({
+        id: 'db-events-glow',
+        type: 'circle',
+        source: 'db-events-circles',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            1, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
+          ],
+          'circle-radius': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            1, 10, 5, 16, 8, 22, 10, 30,
+          ],
+          'circle-opacity': 0.15,
+          'circle-blur': 1,
+        },
+      });
+
+      // DB individual event circles (unclustered)
+      m.addLayer({
+        id: 'db-events-points',
+        type: 'circle',
+        source: 'db-events-circles',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            1, '#facc15', 3, '#f59e0b', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
+          ],
+          'circle-radius': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            1, 5, 5, 8, 8, 11, 10, 15,
+          ],
+          'circle-opacity': 0.9,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': 'rgba(255,255,255,0.25)',
+        },
+      });
+
+      // Hover popup for DB events
+      const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
+
+      m.on('mouseenter', 'db-events-points', (e) => {
+        m.getCanvas().style.cursor = 'pointer';
+        if (e.features && e.features[0]) {
+          const props = e.features[0].properties!;
+          const coords = (e.features[0].geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+          popup.setLngLat(coords).setHTML(
+            `<div style="font-size:11px;color:#e5e5e5;max-width:200px;">
+              <strong>${props.name}</strong><br/>
+              <span style="color:#999;">${props.event_date}</span><br/>
+              Fatalities: ${props.fatalities30d} · Severity: ${(props.severity as number).toFixed(1)}
+            </div>`
+          ).addTo(m);
+        }
+      });
+
+      m.on('mouseleave', 'db-events-points', () => {
+        m.getCanvas().style.cursor = '';
+        popup.remove();
+      });
+
+      // Click DB cluster to zoom
+      m.on('click', 'db-clusters', (e) => {
+        const features = m.queryRenderedFeatures(e.point, { layers: ['db-clusters'] });
+        if (!features.length) return;
+        const clusterId = features[0].properties?.cluster_id;
+        const source = m.getSource('db-events-circles') as mapboxgl.GeoJSONSource;
+        source.getClusterExpansionZoom(clusterId, ((err: any, zoom: any) => {
+          if (err || zoom == null) return;
+          const coords = (features[0].geometry as GeoJSON.Point).coordinates;
+          m.easeTo({ center: coords as [number, number], zoom: zoom + 0.5, duration: 800 });
+        }) as any);
+      });
+
+      m.on('mouseenter', 'db-clusters', () => { m.getCanvas().style.cursor = 'pointer'; });
+      m.on('mouseleave', 'db-clusters', () => { m.getCanvas().style.cursor = ''; });
+
+      // === CLUSTERED SOURCE (static mock data) ===
       m.addSource('conflicts-clustered', {
         type: 'geojson',
         data: buildGeoJSON(),
@@ -265,15 +424,9 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         paint: {
           'circle-color': [
             'interpolate', ['linear'], ['get', 'maxSeverity'],
-            3, '#facc15',
-            5, '#f97316',
-            7, '#ef4444',
-            9, '#991b1b',
+            3, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
           ],
-          'circle-radius': [
-            'step', ['get', 'point_count'],
-            28, 4, 36, 8, 44,
-          ],
+          'circle-radius': ['step', ['get', 'point_count'], 28, 4, 36, 8, 44],
           'circle-opacity': 0.12,
           'circle-blur': 0.8,
         },
@@ -288,15 +441,9 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         paint: {
           'circle-color': [
             'interpolate', ['linear'], ['get', 'maxSeverity'],
-            3, '#facc15',
-            5, '#f97316',
-            7, '#ef4444',
-            9, '#991b1b',
+            3, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
           ],
-          'circle-radius': [
-            'step', ['get', 'point_count'],
-            18, 4, 24, 8, 30,
-          ],
+          'circle-radius': ['step', ['get', 'point_count'], 18, 4, 24, 8, 30],
           'circle-opacity': 0.65,
           'circle-stroke-width': 2,
           'circle-stroke-color': 'rgba(255,255,255,0.15)',
@@ -339,14 +486,13 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         }) as any);
       });
 
-      // Cursor pointer on clusters
       m.on('mouseenter', 'clusters', () => { m.getCanvas().style.cursor = 'pointer'; });
       m.on('mouseleave', 'clusters', () => { m.getCanvas().style.cursor = ''; });
 
-      // Add individual DOM markers
+      // Add individual DOM markers for static conflict zones
       addMarkers(m);
 
-      // Update marker visibility based on zoom (hide when clusters show)
+      // Update marker visibility based on zoom (static markers only — DB markers always visible)
       m.on('zoom', () => {
         const zoom = m.getZoom();
         markersRef.current.forEach(marker => {
@@ -365,15 +511,12 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       });
     });
 
-    // Navigation controls
     m.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right');
 
-    // Click on map background to deselect
     m.on('click', (e) => {
       const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] });
       if (features.length === 0 && selectedIdRef.current) {
-        // Only deselect if not clicking on a cluster or marker
-        // (marker clicks are handled by DOM event listeners)
+        // deselect handled by marker click
       }
     });
 
@@ -386,7 +529,7 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
     };
   }, []);
 
-  // Add DOM markers for individual conflict zones
+  // Add DOM markers for static conflict zones
   const addMarkers = useCallback((m: mapboxgl.Map) => {
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
@@ -396,10 +539,31 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat([zone.longitude, zone.latitude])
         .addTo(m);
-
       markersRef.current.push(marker);
     });
   }, [createMarkerEl]);
+
+  // Update DB events GeoJSON when timeline date changes
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    const m = map.current;
+    const filtered = filterEventsByDate(dbEvents, timelineDate);
+    const geojson = buildGeoJSONFromEvents(filtered);
+
+    // Update heatmap source
+    const heatSource = m.getSource('db-events-heat') as mapboxgl.GeoJSONSource;
+    if (heatSource) {
+      heatSource.setData(geojson);
+    }
+
+    // Update circle layer source
+    const circleSource = m.getSource('db-events-circles') as mapboxgl.GeoJSONSource;
+    if (circleSource) {
+      circleSource.setData(geojson);
+    }
+
+  }, [dbEvents, timelineDate, mapLoaded]);
 
   // Fly to selected conflict
   useEffect(() => {
@@ -413,6 +577,18 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       essential: true,
     });
   }, [selectedConflict]);
+
+  // Fly to target from chat command
+  useEffect(() => {
+    if (!map.current || !flyToTarget) return;
+    map.current.flyTo({
+      center: [flyToTarget.lng, flyToTarget.lat],
+      zoom: 5,
+      pitch: 40,
+      duration: 2000,
+      essential: true,
+    });
+  }, [flyToTarget]);
 
   return (
     <div className="absolute inset-0" style={{ top: '56px' }}>
@@ -439,7 +615,7 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         </div>
       )}
 
-      {/* Vignette overlay for depth */}
+      {/* Vignette overlay */}
       <div
         className="absolute inset-0 pointer-events-none z-[1]"
         style={{
@@ -447,7 +623,7 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         }}
       />
 
-      {/* Top gradient fade for navbar blend */}
+      {/* Top gradient fade */}
       <div
         className="absolute top-0 left-0 right-0 h-20 pointer-events-none z-[1]"
         style={{
