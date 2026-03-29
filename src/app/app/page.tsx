@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Navbar from '@/components/Navbar';
 import LeftPanel from '@/components/LeftPanel';
@@ -12,6 +12,7 @@ import ShaderBackground from '@/components/ShaderBackground';
 import type { ConflictZone } from '@/data/conflicts';
 import type { MapFilters } from '@/data/filters';
 import { useConflictEvents } from '@/lib/useConflictEvents';
+import { buildZonesFromEvents } from '@/lib/buildZonesFromEvents';
 import { useAuth } from '@/lib/useAuth';
 import AuthModal from '@/components/AuthModal';
 import {
@@ -42,9 +43,8 @@ export default function AppPage() {
   const [selectedConflict, setSelectedConflict] = useState<ConflictZone | null>(null);
   const [timelineDate, setTimelineDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
-  const [conflictZones, setConflictZones] = useState<ConflictZone[]>([]);
-  const [zonesLoading, setZonesLoading] = useState(false);
-  const { events: dbEvents, earliestDate } = useConflictEvents(timelineDate);
+  const { events: dbEvents, earliestDate, loading: eventsLoading } = useConflictEvents(timelineDate);
+  const conflictZones = useMemo(() => buildZonesFromEvents(dbEvents), [dbEvents]);
   const { user, signUp, signIn, signOut } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
@@ -70,39 +70,6 @@ export default function AppPage() {
     [],
   );
 
-  const fetchZones = useCallback(async () => {
-    setZonesLoading(true);
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://127.0.0.1:8000';
-    try {
-      const res = await fetch(`${backendUrl}/api/conflict-zones`);
-      if (!res.ok) throw new Error(`API responded ${res.status}`);
-      const data = await res.json();
-      const zones: ConflictZone[] = data.map(
-        (item: Omit<ConflictZone, 'aiAnalysis' | 'newsSources' | 'events'>) => ({
-          ...item,
-          aiAnalysis: {
-            background: '',
-            currentSituation: '',
-            humanitarianImpact: '',
-            outlook: '',
-            keyActors: [],
-          },
-          newsSources: [],
-          events: [],
-        }),
-      );
-      setConflictZones(zones);
-    } catch (err) {
-      console.error('[fetchZones]', err);
-      setConflictZones([]);
-    } finally {
-      setZonesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchZones();
-  }, []);
 
   const handleConflictSelect = useCallback((zone: ConflictZone | null) => {
     setSelectedConflict(zone);
@@ -136,7 +103,7 @@ export default function AppPage() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         conflictZones={conflictZones}
-        isLoading={zonesLoading}
+        isLoading={eventsLoading}
         user={user}
         onSignInClick={() => setAuthModalOpen(true)}
         onSignOut={signOut}
@@ -172,7 +139,7 @@ export default function AppPage() {
         filters={filters}
         searchQuery={searchQuery}
         conflictZones={conflictZones}
-        isLoading={zonesLoading}
+        isLoading={eventsLoading}
       />
 
       {selectedConflict && leftPanelOpen && (
