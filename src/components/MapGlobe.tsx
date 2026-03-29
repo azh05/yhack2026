@@ -7,6 +7,7 @@ import { CONFLICT_ZONES, type ConflictZone } from "@/data/conflicts";
 import { getConflictsAtDate } from "@/data/timeline";
 import type { MapFilters } from "@/data/filters";
 import { type DBEvent, buildGeoJSONFromEvents } from "@/lib/useConflictEvents";
+import { getCountryRegion } from "@/lib/buildZonesFromEvents";
 
 mapboxgl.accessToken =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
@@ -836,10 +837,26 @@ export default function MapGlobe({
     if (!map.current || !mapLoaded) return;
     const m = map.current;
 
-    // Apply event type filter from Layers panel
+    // Apply all filters: event type, region, and severity
     const filtered = dbEvents.filter((e) => {
+      // Event type filter
       const typeId = EVENT_TYPE_MAP[e.event_type];
       if (typeId && !filters.activeTypes.has(typeId)) return false;
+
+      // Region filter
+      if (filters.selectedRegion !== "All Regions") {
+        const eventRegion = getCountryRegion(e.country);
+        if (eventRegion !== filters.selectedRegion) return false;
+      }
+
+      // Severity filter
+      const severity = e.severity_score ?? 5;
+      if (
+        severity < filters.severityRange[0] ||
+        severity > filters.severityRange[1]
+      )
+        return false;
+
       return true;
     });
 
@@ -852,7 +869,7 @@ export default function MapGlobe({
       "db-events-circles",
     ) as mapboxgl.GeoJSONSource;
     if (circleSource) circleSource.setData(geojson);
-  }, [dbEvents, timelineDate, mapLoaded, filters.activeTypes]);
+  }, [dbEvents, timelineDate, mapLoaded, filters]);
 
   // Fly to chat target
   useEffect(() => {
