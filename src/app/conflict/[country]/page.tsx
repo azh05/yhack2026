@@ -20,6 +20,7 @@ import {
   Sparkles,
   Bot,
   ChevronDown,
+  Languages,
 } from "lucide-react";
 
 interface Briefing {
@@ -36,6 +37,7 @@ interface NewsArticle {
   url: string;
   source_country: string;
   seendate: string;
+  language?: string;
 }
 
 function CountryOutline({ country }: { country: string }) {
@@ -130,6 +132,7 @@ export default function ConflictPage() {
   const [briefingLoading, setBriefingLoading] = useState(true);
   const [newsLoading, setNewsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [newsSource, setNewsSource] = useState<"google" | "gdelt">("google");
 
   useEffect(() => {
     fetch(`/api/briefing?country=${encodeURIComponent(country)}`)
@@ -139,23 +142,27 @@ export default function ConflictPage() {
       })
       .catch(() => {})
       .finally(() => setBriefingLoading(false));
+  }, [country]);
 
+  useEffect(() => {
+    setNewsLoading(true);
     fetch(
-      `/api/news?country=${encodeURIComponent(country)}&keyword=conflict&limit=8`,
+      `/api/news?country=${encodeURIComponent(country)}&keyword=conflict&limit=8&source=${newsSource}`,
     )
       .then((res) => res.json())
       .then((data) => {
         const articles = (data.articles ?? []).map((a: any) => ({
           title: a.title,
           url: a.url,
-          source_country: a.source || "",
-          seendate: a.pubDate || a.pub_date || "",
+          source_country: a.source || a.source_country || "",
+          seendate: a.pubDate || a.pub_date || a.seendate || "",
+          language: a.language || "",
         }));
         setNews(articles);
       })
       .catch(() => {})
       .finally(() => setNewsLoading(false));
-  }, [country]);
+  }, [country, newsSource]);
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -249,10 +256,35 @@ export default function ConflictPage() {
 
         {/* News */}
         <div className="border-t border-white/[0.04] pt-8">
-          <h2 className="flex items-center gap-2 text-sm font-display font-semibold mb-4">
-            <Newspaper className="w-4 h-4 text-white/40" />
-            Latest News
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="flex items-center gap-2 text-sm font-display font-semibold">
+              <Newspaper className="w-4 h-4 text-white/40" />
+              Latest News
+            </h2>
+            <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+              <button
+                onClick={() => setNewsSource("google")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  newsSource === "google"
+                    ? "bg-white/10 text-white shadow-sm"
+                    : "text-white/35 hover:text-white/60"
+                }`}
+              >
+                Google
+              </button>
+              <button
+                onClick={() => setNewsSource("gdelt")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  newsSource === "gdelt"
+                    ? "bg-white/10 text-white shadow-sm"
+                    : "text-white/35 hover:text-white/60"
+                }`}
+              >
+                <Languages className="w-3 h-3" />
+                GDELT
+              </button>
+            </div>
+          </div>
           {newsLoading ? (
             <div className="flex items-center gap-2 text-white/40">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -274,9 +306,15 @@ export default function ConflictPage() {
                     <p className="text-sm text-white/80 group-hover:text-white transition-colors line-clamp-2">
                       {article.title}
                     </p>
-                    <p className="text-xs text-white/30 mt-1">
-                      {article.source_country} ·{" "}
+                    <p className="text-xs text-white/30 mt-1 flex items-center gap-1.5">
+                      {article.source_country}
+                      {article.source_country && " · "}
                       {article.seendate?.slice(0, 10) || ""}
+                      {article.language && newsSource === "gdelt" && (
+                        <span className="px-1.5 py-0.5 rounded bg-white/[0.06] text-[10px] text-white/40 uppercase font-mono">
+                          {article.language}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <ExternalLink className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 shrink-0 mt-1" />

@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
       );
 
       return resend.emails.send({
-        from: "Love Over War <digest@planethealth.earth>",
+        from: "Love Over War <loveorwar67@planetearth.health>",
         to: sub.email,
         subject: `❤ Love Over War Digest — ${dateRange}${watchedCountries.length > 0 ? ` · ${watchedCountries.slice(0, 2).join(", ")}` : ""}`,
         html: htmlContent,

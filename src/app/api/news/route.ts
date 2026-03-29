@@ -54,6 +54,37 @@ function toGoogleDateString(input: string): string {
 
 const CACHE_MAX_AGE_HOURS = 6;
 
+/**
+ * Fetch articles from GDELT DOC API (multi-language, global coverage).
+ * Docs: https://blog.gdeltproject.org/gdelt-doc-2-0-api-unveiled/
+ */
+async function fetchGDELT(
+  country: string,
+  keyword: string,
+  limit: number,
+): Promise<NewsArticle[]> {
+  const query = encodeURIComponent(`${country} ${keyword}`);
+  const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=${limit}&format=json&sort=DateDesc&trans=googtrans`;
+
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+  });
+
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const articles: NewsArticle[] = (data.articles ?? []).map((a: any) => ({
+    url: a.url ?? "",
+    title: a.title?.trim() ?? "",
+    source: a.domain ?? a.sourcecountry ?? "",
+    pub_date: a.seendate ?? "",
+    language: a.language ?? "",
+    source_country: a.sourcecountry ?? "",
+  }));
+
+  return articles;
+}
+
 export async function GET(req: NextRequest) {
   if (!supabaseServer) {
     return NextResponse.json(
@@ -68,6 +99,7 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(params.get("limit") || "10");
   const before = params.get("before"); // ISO date string or YYYY-MM-DD
   const after = params.get("after"); // ISO date string or YYYY-MM-DD
+  const source = params.get("source") || "google"; // "google" | "gdelt"
 
   if (!country) {
     return NextResponse.json(
@@ -75,6 +107,27 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
+
+  // --- GDELT path (no caching for now, GDELT is fast) ---
+  if (source === "gdelt") {
+    try {
+      const articles = await fetchGDELT(country, keyword, limit);
+      return NextResponse.json({
+        country,
+        keyword,
+        source: "gdelt",
+        articles,
+        cached: false,
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "Failed to fetch from GDELT" },
+        { status: 502 },
+      );
+    }
+  }
+
+  // --- Google News path ---
 
   // Build the cache key suffix so date-scoped queries are cached separately
   const dateCacheKey = [after, before].filter(Boolean).join("_") || "latest";
@@ -119,14 +172,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       country,
       keyword,
+      source: "google",
       articles: cached,
       cached: true,
     });
   }
 
   // Build Google News RSS search query with date operators.
-  // Google News search supports `before:YYYY-MM-DD` and `after:YYYY-MM-DD`
-  // to restrict results to a specific date window.
   let searchTerms = `${country} ${keyword}`;
 
   if (after) {
@@ -165,7 +217,13 @@ export async function GET(req: NextRequest) {
         .then(() => {});
     }
 
-    return NextResponse.json({ country, keyword, articles, cached: false });
+    return NextResponse.json({
+      country,
+      keyword,
+      source: "google",
+      articles,
+      cached: false,
+    });
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch news" },
