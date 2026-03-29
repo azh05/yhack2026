@@ -2,8 +2,7 @@
 -- Run this in your Supabase project's SQL editor.
 
 create table conflict_events (
-  id bigint generated always as identity primary key,
-  event_id_cnty text unique not null,
+  id bigint primary key,
   event_date date not null,
   event_type text not null,
   sub_event_type text,
@@ -18,7 +17,6 @@ create table conflict_events (
   notes text,
   source text,
   severity_score numeric(3,1),
-  fetched_at timestamptz default now(),
   created_at timestamptz default now()
 );
 
@@ -33,6 +31,3 @@ create index idx_conflict_events_country_date on conflict_events (country, event
 
 -- Event type filtering
 create index idx_conflict_events_type on conflict_events (event_type);
-
--- Fast lookups by ACLED event id (used for upsert conflict resolution)
-create index idx_conflict_events_acled_id on conflict_events (event_id_cnty);
