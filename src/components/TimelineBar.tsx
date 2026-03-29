@@ -28,11 +28,12 @@ const SPEED_OPTIONS = [
   { label: '8×', value: 8 },
 ];
 
+// Each mode controls how much timeline % per second of playback (at 1x speed)
 const TIMELAPSE_MODES = [
-  { id: '24h', label: '24h' },
-  { id: 'week', label: 'Week' },
-  { id: 'month', label: 'Month' },
-  { id: 'year', label: 'Year' },
+  { id: '24h', label: '24h', rate: 0.12 },  // ~1 day per second
+  { id: 'week', label: 'Week', rate: 0.85 },  // ~1 week per second
+  { id: 'month', label: 'Month', rate: 3.7 },  // ~1 month per second
+  { id: 'year', label: 'Year', rate: 45 },     // ~1 year per second
 ];
 
 export default function TimelineBar({ onDateChange }: TimelineBarProps) {
@@ -75,6 +76,10 @@ export default function TimelineBar({ onDateChange }: TimelineBarProps) {
     d.setDate(1);
   }
 
+  // Stable ref for onDateChange to avoid re-render loops
+  const onDateChangeRef = useRef(onDateChange);
+  onDateChangeRef.current = onDateChange;
+
   // Playback animation
   useEffect(() => {
     if (!isPlaying) {
@@ -83,32 +88,39 @@ export default function TimelineBar({ onDateChange }: TimelineBarProps) {
     }
 
     let lastTime = performance.now();
+    let stopped = false;
     const step = (now: number) => {
-      const dt = now - lastTime;
+      if (stopped) return;
+      const dt = Math.min(now - lastTime, 100); // Cap dt to avoid huge jumps
       lastTime = now;
-      // Move ~0.5% per second at 1x speed
-      const increment = (dt / 1000) * 0.5 * speed;
+      const modeRate = TIMELAPSE_MODES.find(m => m.id === timelapseMode)?.rate ?? 0.5;
+      const increment = (dt / 1000) * modeRate * speed;
       setProgress(prev => {
         const next = prev + increment;
         if (next >= 100) {
-          setIsPlaying(false);
+          stopped = true;
+          // Defer stopping playback to avoid setState-in-setState
+          queueMicrotask(() => setIsPlaying(false));
           return 100;
         }
         return next;
       });
-      animRef.current = requestAnimationFrame(step);
+      if (!stopped) {
+        animRef.current = requestAnimationFrame(step);
+      }
     };
 
     animRef.current = requestAnimationFrame(step);
     return () => {
+      stopped = true;
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [isPlaying, speed]);
+  }, [isPlaying, speed, timelapseMode]);
 
-  // Update parent on progress change
+  // Update parent on progress change — use ref to break dependency cycle
   useEffect(() => {
-    onDateChange(getCurrentDate());
-  }, [progress, getCurrentDate, onDateChange]);
+    onDateChangeRef.current(getCurrentDate());
+  }, [progress, getCurrentDate]);
 
   // Drag handling
   const handleSliderClick = (e: React.MouseEvent) => {
@@ -202,8 +214,8 @@ export default function TimelineBar({ onDateChange }: TimelineBarProps) {
                   {currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               </div>
-              {/* Handle */}
-              <div className="w-3.5 h-3.5 rounded-full bg-accent border-2 border-white shadow-lg shadow-accent/30 transition-transform hover:scale-125" />
+              {/* Handle with glow trail */}
+              <div className={`w-3.5 h-3.5 rounded-full bg-accent border-2 border-white shadow-lg transition-transform hover:scale-125 ${isPlaying ? 'shadow-accent/60 animate-glow' : 'shadow-accent/30'}`} />
               {/* Vertical line */}
               <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-px h-2 bg-accent/40" />
             </div>
@@ -238,7 +250,7 @@ export default function TimelineBar({ onDateChange }: TimelineBarProps) {
           </button>
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/80 hover:bg-accent text-white transition-colors"
+            className={`flex items-center justify-center w-8 h-8 rounded-lg bg-accent/80 hover:bg-accent text-white transition-all ${isPlaying ? 'shadow-lg shadow-accent/40 animate-glow' : ''}`}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
           </button>

@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { CONFLICT_ZONES, getSeverityColor, getSeverityLabel, type ConflictZone } from '@/data/conflicts';
+import { CONFLICT_ZONES, getSeverityColor, type ConflictZone } from '@/data/conflicts';
+import { getConflictsAtDate } from '@/data/timeline';
+import type { MapFilters } from '@/data/filters';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'YOUR_MAPBOX_TOKEN_HERE';
 
@@ -11,12 +13,14 @@ interface MapGlobeProps {
   onConflictSelect: (zone: ConflictZone | null) => void;
   selectedConflict: ConflictZone | null;
   timelineDate: Date;
+  filters: MapFilters;
+  rightPanelOpen?: boolean;
 }
 
-function buildGeoJSON() {
+function buildGeoJSON(zones: ConflictZone[]) {
   return {
     type: 'FeatureCollection' as const,
-    features: CONFLICT_ZONES.map(zone => ({
+    features: zones.map(zone => ({
       type: 'Feature' as const,
       properties: {
         id: zone.id,
@@ -26,6 +30,9 @@ function buildGeoJSON() {
         eventCount: zone.eventCount,
         country: zone.country,
         trend: zone.trend,
+        region: zone.region,
+        primaryType: zone.primaryType,
+        eventType: zone.eventType,
       },
       geometry: {
         type: 'Point' as const,
@@ -35,19 +42,41 @@ function buildGeoJSON() {
   };
 }
 
-export default function MapGlobe({ onConflictSelect, selectedConflict, timelineDate }: MapGlobeProps) {
+function matchesEventType(zone: ConflictZone, activeTypes: Set<string>): boolean {
+  return activeTypes.has(zone.eventType);
+}
+
+export default function MapGlobe({ onConflictSelect, selectedConflict, timelineDate, filters, rightPanelOpen = false }: MapGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
   const selectedIdRef = useRef<string | null>(null);
 
-  // Keep ref in sync
   useEffect(() => {
     selectedIdRef.current = selectedConflict?.id ?? null;
   }, [selectedConflict]);
 
-  // Create custom DOM marker for individual (unclustered) points
+  const handleZoomIn = useCallback(() => { map.current?.zoomIn({ duration: 300 }); }, []);
+  const handleZoomOut = useCallback(() => { map.current?.zoomOut({ duration: 300 }); }, []);
+  const handleResetBearing = useCallback(() => {
+    map.current?.easeTo({ bearing: 0, pitch: 0, duration: 500 });
+  }, []);
+
+  // Compute time-adjusted + filtered zones
+  const visibleZones = useMemo(() => {
+    const timeZones = getConflictsAtDate(timelineDate);
+    return timeZones.filter(zone => {
+      // Region filter
+      if (filters.selectedRegion !== 'All Regions' && zone.region !== filters.selectedRegion) return false;
+      // Severity filter
+      if (zone.severity < filters.severityRange[0] || zone.severity > filters.severityRange[1]) return false;
+      // Event type filter
+      if (!matchesEventType(zone, filters.activeTypes)) return false;
+      return true;
+    });
+  }, [timelineDate, filters]);
+
   const createMarkerEl = useCallback((zone: ConflictZone) => {
     const el = document.createElement('div');
     const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
@@ -87,7 +116,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       onConflictSelect(zone);
     });
 
-    // Hover tooltip
     el.addEventListener('mouseenter', () => {
       el.title = `${zone.name} — Severity ${zone.severity.toFixed(1)}`;
     });
@@ -111,7 +139,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       pitch: 15,
     });
 
-    // Globe atmosphere
     m.on('style.load', () => {
       m.setFog({
         color: 'rgb(8, 12, 22)',
@@ -125,7 +152,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
     m.on('load', () => {
       setMapLoaded(true);
 
-      // Terrain
       m.addSource('mapbox-dem', {
         type: 'raster-dem',
         url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
@@ -134,7 +160,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       });
       m.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
 
-      // --- Darken base layers for contrast ---
       if (m.getLayer('water')) {
         m.setPaintProperty('water', 'fill-color', '#060a12');
       }
@@ -144,7 +169,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         }
       });
 
-      // Admin boundaries - brighter for visibility
       if (m.getLayer('admin-0-boundary')) {
         m.setPaintProperty('admin-0-boundary', 'line-color', '#2a4a6f');
         m.setPaintProperty('admin-0-boundary', 'line-opacity', 0.6);
@@ -159,30 +183,25 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         m.setPaintProperty('admin-1-boundary', 'line-opacity', 0.3);
       }
 
-      // --- FIX: Brighten map labels for readability ---
       m.getStyle().layers.forEach(layer => {
         if (layer.type === 'symbol') {
           const id = layer.id;
           try {
             if (id.includes('country-label')) {
-              // Country names - bright and prominent
               m.setPaintProperty(id, 'text-color', '#c8d6e5');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 2);
               m.setPaintProperty(id, 'text-halo-blur', 1);
             } else if (id.includes('state-label') || id.includes('settlement-major')) {
-              // State/province and major city names - clearly visible
               m.setPaintProperty(id, 'text-color', '#9bb3cc');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 1.5);
               m.setPaintProperty(id, 'text-halo-blur', 0.5);
             } else if (id.includes('settlement') || id.includes('place-label')) {
-              // Other settlements - subtly visible
               m.setPaintProperty(id, 'text-color', '#7a96b0');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 1.5);
             } else if (id.includes('label')) {
-              // All other labels (water, POIs, etc.)
               m.setPaintProperty(id, 'text-color', '#5a7a94');
               m.setPaintProperty(id, 'text-halo-color', '#0a0e17');
               m.setPaintProperty(id, 'text-halo-width', 1);
@@ -194,7 +213,7 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       // === HEATMAP LAYER ===
       m.addSource('conflict-heat', {
         type: 'geojson',
-        data: buildGeoJSON(),
+        data: buildGeoJSON(CONFLICT_ZONES),
       });
 
       m.addLayer({
@@ -205,16 +224,11 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         paint: {
           'heatmap-weight': [
             'interpolate', ['linear'], ['get', 'severity'],
-            1, 0.1,
-            5, 0.4,
-            8, 0.7,
-            10, 1,
+            1, 0.1, 5, 0.4, 8, 0.7, 10, 1,
           ],
           'heatmap-intensity': [
             'interpolate', ['linear'], ['zoom'],
-            0, 0.6,
-            4, 1,
-            8, 1.5,
+            0, 0.6, 4, 1, 8, 1.5,
           ],
           'heatmap-color': [
             'interpolate', ['linear'], ['heatmap-density'],
@@ -228,24 +242,19 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
           ],
           'heatmap-radius': [
             'interpolate', ['linear'], ['zoom'],
-            0, 30,
-            3, 50,
-            6, 70,
-            9, 90,
+            0, 30, 3, 50, 6, 70, 9, 90,
           ],
           'heatmap-opacity': [
             'interpolate', ['linear'], ['zoom'],
-            0, 0.7,
-            6, 0.5,
-            9, 0.2,
+            0, 0.7, 6, 0.5, 9, 0.2,
           ],
         },
       });
 
-      // === CLUSTERED SOURCE FOR CLUSTER INDICATORS ===
+      // === CLUSTERED SOURCE ===
       m.addSource('conflicts-clustered', {
         type: 'geojson',
-        data: buildGeoJSON(),
+        data: buildGeoJSON(CONFLICT_ZONES),
         cluster: true,
         clusterMaxZoom: 5,
         clusterRadius: 80,
@@ -256,7 +265,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         },
       });
 
-      // Cluster circles — outer glow
       m.addLayer({
         id: 'cluster-glow',
         type: 'circle',
@@ -265,21 +273,14 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         paint: {
           'circle-color': [
             'interpolate', ['linear'], ['get', 'maxSeverity'],
-            3, '#facc15',
-            5, '#f97316',
-            7, '#ef4444',
-            9, '#991b1b',
+            3, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
           ],
-          'circle-radius': [
-            'step', ['get', 'point_count'],
-            28, 4, 36, 8, 44,
-          ],
+          'circle-radius': ['step', ['get', 'point_count'], 28, 4, 36, 8, 44],
           'circle-opacity': 0.12,
           'circle-blur': 0.8,
         },
       });
 
-      // Cluster circles — core
       m.addLayer({
         id: 'clusters',
         type: 'circle',
@@ -288,22 +289,15 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         paint: {
           'circle-color': [
             'interpolate', ['linear'], ['get', 'maxSeverity'],
-            3, '#facc15',
-            5, '#f97316',
-            7, '#ef4444',
-            9, '#991b1b',
+            3, '#facc15', 5, '#f97316', 7, '#ef4444', 9, '#991b1b',
           ],
-          'circle-radius': [
-            'step', ['get', 'point_count'],
-            18, 4, 24, 8, 30,
-          ],
+          'circle-radius': ['step', ['get', 'point_count'], 18, 4, 24, 8, 30],
           'circle-opacity': 0.65,
           'circle-stroke-width': 2,
           'circle-stroke-color': 'rgba(255,255,255,0.15)',
         },
       });
 
-      // Cluster count text
       m.addLayer({
         id: 'cluster-count',
         type: 'symbol',
@@ -322,7 +316,26 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         },
       });
 
-      // Click on cluster to zoom in
+      // === ADMIN BORDERS LAYER (for "Conflict Borders" overlay) ===
+      m.addLayer({
+        id: 'conflict-borders',
+        type: 'circle',
+        source: 'conflicts-clustered',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'severity'],
+            3, 'rgba(250,204,21,0.15)', 5, 'rgba(249,115,22,0.2)', 7, 'rgba(239,68,68,0.25)', 9, 'rgba(153,27,27,0.3)',
+          ],
+          'circle-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 40, 3, 60, 6, 100, 9, 150,
+          ],
+          'circle-blur': 0.7,
+          'circle-opacity': 0,
+        },
+      });
+
       m.on('click', 'clusters', (e) => {
         const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         if (!features.length) return;
@@ -339,17 +352,12 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
         }) as any);
       });
 
-      // Cursor pointer on clusters
       m.on('mouseenter', 'clusters', () => { m.getCanvas().style.cursor = 'pointer'; });
       m.on('mouseleave', 'clusters', () => { m.getCanvas().style.cursor = ''; });
 
-      // Add individual DOM markers
-      addMarkers(m);
-
-      // Update marker visibility based on zoom (hide when clusters show)
       m.on('zoom', () => {
         const zoom = m.getZoom();
-        markersRef.current.forEach(marker => {
+        markersRef.current.forEach((marker) => {
           const el = marker.getElement();
           if (zoom < 3) {
             el.style.opacity = '0';
@@ -365,17 +373,8 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
       });
     });
 
-    // Navigation controls
-    m.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right');
-
-    // Click on map background to deselect
-    m.on('click', (e) => {
-      const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-      if (features.length === 0 && selectedIdRef.current) {
-        // Only deselect if not clicking on a cluster or marker
-        // (marker clicks are handled by DOM event listeners)
-      }
-    });
+    // Custom zoom controls rendered via React instead of Mapbox's NavigationControl
+    // to avoid Mapbox's aggressive style overrides that prevent repositioning
 
     map.current = m;
 
@@ -386,20 +385,86 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
     };
   }, []);
 
-  // Add DOM markers for individual conflict zones
-  const addMarkers = useCallback((m: mapboxgl.Map) => {
-    markersRef.current.forEach(marker => marker.remove());
-    markersRef.current = [];
+  // Update markers + GeoJSON sources when visibleZones change
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !mapLoaded) return;
 
-    CONFLICT_ZONES.forEach(zone => {
-      const el = createMarkerEl(zone);
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([zone.longitude, zone.latitude])
-        .addTo(m);
+    const geoJSON = buildGeoJSON(visibleZones);
 
-      markersRef.current.push(marker);
+    // Update heatmap source
+    const heatSource = m.getSource('conflict-heat') as mapboxgl.GeoJSONSource | undefined;
+    if (heatSource) heatSource.setData(geoJSON);
+
+    // Update cluster source
+    const clusterSource = m.getSource('conflicts-clustered') as mapboxgl.GeoJSONSource | undefined;
+    if (clusterSource) clusterSource.setData(geoJSON);
+
+    // Sync DOM markers
+    const visibleIds = new Set(visibleZones.map(z => z.id));
+
+    // Remove markers that are no longer visible
+    markersRef.current.forEach((marker, id) => {
+      if (!visibleIds.has(id)) {
+        marker.remove();
+        markersRef.current.delete(id);
+      }
     });
-  }, [createMarkerEl]);
+
+    // Add or update markers
+    visibleZones.forEach(zone => {
+      const existing = markersRef.current.get(zone.id);
+      if (existing) {
+        // Update position (doesn't change, but update the marker element for severity changes)
+        const el = existing.getElement();
+        const size = Math.max(16, Math.min(44, 12 + zone.severity * 3.2));
+        const color = getSeverityColor(zone.severity);
+        // Update the core circle color
+        const core = el.querySelector('.conflict-marker-group > div:nth-child(3)') as HTMLElement;
+        if (core) {
+          core.style.background = `radial-gradient(circle at 35% 35%, ${color}ee, ${color}88)`;
+          core.style.borderColor = `${color}bb`;
+          core.style.boxShadow = `0 0 ${size * 0.5}px ${color}50`;
+        }
+        // Update aura
+        const aura = el.querySelector('.conflict-marker-group > div:nth-child(2)') as HTMLElement;
+        if (aura) {
+          aura.style.background = `${color}25`;
+          aura.style.boxShadow = `0 0 ${size}px ${color}35`;
+        }
+      } else {
+        // Create new marker
+        const el = createMarkerEl(zone);
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([zone.longitude, zone.latitude])
+          .addTo(m);
+        markersRef.current.set(zone.id, marker);
+      }
+    });
+  }, [visibleZones, mapLoaded, createMarkerEl]);
+
+  // Toggle overlay visibility based on filters
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !mapLoaded) return;
+
+    // Heatmap
+    if (m.getLayer('conflict-heatmap')) {
+      m.setLayoutProperty('conflict-heatmap', 'visibility', filters.overlays.heatmap ? 'visible' : 'none');
+    }
+
+    // Clusters
+    ['cluster-glow', 'clusters', 'cluster-count'].forEach(layerId => {
+      if (m.getLayer(layerId)) {
+        m.setLayoutProperty(layerId, 'visibility', filters.overlays.clusters ? 'visible' : 'none');
+      }
+    });
+
+    // Conflict borders overlay — soft radial zones around each conflict point
+    if (m.getLayer('conflict-borders')) {
+      m.setPaintProperty('conflict-borders', 'circle-opacity', filters.overlays.borders ? 0.6 : 0);
+    }
+  }, [filters.overlays, mapLoaded]);
 
   // Fly to selected conflict
   useEffect(() => {
@@ -418,7 +483,6 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
     <div className="absolute inset-0" style={{ top: '56px' }}>
       <div ref={mapContainer} className="w-full h-full" />
 
-      {/* Loading overlay */}
       {!mapLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface z-10">
           <div className="flex flex-col items-center gap-4">
@@ -428,31 +492,54 @@ export default function MapGlobe({ onConflictSelect, selectedConflict, timelineD
               <div className="absolute inset-4 rounded-full bg-accent/10" />
             </div>
             <div className="flex flex-col items-center gap-1">
-              <span className="text-sm font-display font-medium text-white/80">
-                Initializing Globe
-              </span>
-              <span className="text-2xs font-mono text-muted/60 tracking-wide">
-                LOADING CONFLICT DATA...
-              </span>
+              <span className="text-sm font-display font-medium text-white/80">Initializing Globe</span>
+              <span className="text-2xs font-mono text-muted/60 tracking-wide">LOADING CONFLICT DATA...</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Vignette overlay for depth */}
+      {/* Custom Zoom / Compass Controls */}
+      {mapLoaded && (
+        <div
+          className="z-10 flex flex-col gap-0 rounded-lg overflow-hidden glass border border-white/[0.06]"
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: rightPanelOpen ? 274 : 14,
+          }}
+        >
+          <button
+            onClick={handleZoomIn}
+            className="w-[34px] h-[34px] flex items-center justify-center text-white/70 hover:text-white hover:bg-accent/10 transition-colors border-b border-white/[0.06]"
+            title="Zoom in"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="w-[34px] h-[34px] flex items-center justify-center text-white/70 hover:text-white hover:bg-accent/10 transition-colors border-b border-white/[0.06]"
+            title="Zoom out"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+          <button
+            onClick={handleResetBearing}
+            className="w-[34px] h-[34px] flex items-center justify-center text-white/70 hover:text-white hover:bg-accent/10 transition-colors"
+            title="Reset bearing"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2l2.5 5.5L8 6.5 5.5 7.5 8 2z" fill="#ef4444" opacity="0.8"/><path d="M8 14l-2.5-5.5L8 9.5l2.5-1L8 14z" fill="currentColor" opacity="0.5"/></svg>
+          </button>
+        </div>
+      )}
+
       <div
         className="absolute inset-0 pointer-events-none z-[1]"
-        style={{
-          background: 'radial-gradient(ellipse at center, transparent 50%, rgba(6,8,16,0.4) 100%)',
-        }}
+        style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(6,8,16,0.4) 100%)' }}
       />
-
-      {/* Top gradient fade for navbar blend */}
       <div
         className="absolute top-0 left-0 right-0 h-20 pointer-events-none z-[1]"
-        style={{
-          background: 'linear-gradient(to bottom, rgba(10,14,23,0.5) 0%, transparent 100%)',
-        }}
+        style={{ background: 'linear-gradient(to bottom, rgba(10,14,23,0.5) 0%, transparent 100%)' }}
       />
     </div>
   );

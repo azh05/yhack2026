@@ -1,116 +1,119 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import Navbar from '@/components/Navbar';
-import LeftPanel from '@/components/LeftPanel';
-import RightPanel from '@/components/RightPanel';
-import TimelineBar from '@/components/TimelineBar';
-import ConflictDetail from '@/components/ConflictDetail';
-import type { ConflictZone } from '@/data/conflicts';
-import {
-  PanelLeft,
-  Layers,
-} from 'lucide-react';
+import { Globe2, ArrowRight, Shield, Radio, BarChart3, Crosshair, Eye } from 'lucide-react';
 
-// Dynamic import for MapGlobe to avoid SSR issues with Mapbox
-const MapGlobe = dynamic(() => import('@/components/MapGlobe'), {
-  ssr: false,
-  loading: () => (
-    <div className="absolute inset-0 flex items-center justify-center bg-surface" style={{ top: '56px' }}>
-      <div className="flex flex-col items-center gap-4">
-        <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-2 border-accent/20 animate-ping" />
-          <div className="absolute inset-2 rounded-full border-2 border-t-accent border-r-transparent border-b-transparent border-l-transparent animate-spin" />
-        </div>
-        <span className="text-sm font-display text-white/60">Loading Globe...</span>
-      </div>
-    </div>
-  ),
-});
+const CobeGlobe = dynamic(() => import('@/components/ui/cobe-globe'), { ssr: false });
 
-export default function Home() {
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  const [selectedConflict, setSelectedConflict] = useState<ConflictZone | null>(null);
-  const [timelineDate, setTimelineDate] = useState(new Date());
+const FEATURES = [
+  { icon: <Globe2 className="w-5 h-5" />, title: '3D Globe', desc: 'Interactive Mapbox globe with heatmaps and clustering' },
+  { icon: <Radio className="w-5 h-5" />, title: 'Live Feeds', desc: 'Real-time ACLED and GDELT event ingestion' },
+  { icon: <BarChart3 className="w-5 h-5" />, title: 'Timeline', desc: 'Scrub through months of conflict history' },
+  { icon: <Shield className="w-5 h-5" />, title: 'AI Briefings', desc: 'Claude-powered intelligence analysis' },
+  { icon: <Crosshair className="w-5 h-5" />, title: 'Filters', desc: 'Region, severity, and event type controls' },
+  { icon: <Eye className="w-5 h-5" />, title: 'Forecast', desc: 'Projected conflict trajectories' },
+];
 
-  const handleConflictSelect = useCallback((zone: ConflictZone | null) => {
-    setSelectedConflict(zone);
-    if (zone && !leftPanelOpen) {
-      setLeftPanelOpen(true);
-    }
-  }, [leftPanelOpen]);
-
-  const handleDateChange = useCallback((date: Date) => {
-    setTimelineDate(date);
-  }, []);
+export default function LandingPage() {
+  const router = useRouter();
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-surface relative">
-      {/* Navbar */}
-      <Navbar />
+    <div className="min-h-screen bg-[#08090d] text-white font-body">
+      {/* Hero */}
+      <section className="relative min-h-screen flex items-center">
+        <div className="max-w-7xl mx-auto w-full px-6 lg:px-12 grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left — Copy */}
+          <div className="relative z-10 py-20 lg:py-0">
+            <div className="flex items-center gap-2 mb-8">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-xs font-mono text-white/40 tracking-widest uppercase">
+                Monitoring 46 active conflicts
+              </span>
+            </div>
 
-      {/* Map (base layer) */}
-      <MapGlobe
-        onConflictSelect={handleConflictSelect}
-        selectedConflict={selectedConflict}
-        timelineDate={timelineDate}
-      />
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold leading-[1.05] tracking-tight">
+              <span className="text-white">See the world</span>
+              <br />
+              <span className="text-white/50">as it happens.</span>
+            </h1>
 
-      {/* Left Panel */}
-      <LeftPanel
-        isOpen={leftPanelOpen}
-        onToggle={() => setLeftPanelOpen(false)}
-        onConflictSelect={(zone) => handleConflictSelect(zone)}
-        selectedConflict={selectedConflict}
-      />
+            <p className="mt-6 text-lg text-white/35 max-w-md leading-relaxed">
+              Track armed conflicts, humanitarian crises, and geopolitical shifts on an interactive 3D globe — powered by AI.
+            </p>
 
-      {/* Conflict Detail (slides in next to left panel) */}
-      {selectedConflict && leftPanelOpen && (
-        <ConflictDetail
-          zone={selectedConflict}
-          onClose={() => setSelectedConflict(null)}
-        />
-      )}
+            <div className="flex items-center gap-4 mt-10">
+              <button
+                onClick={() => router.push('/app')}
+                className="group flex items-center gap-2 px-6 py-3 bg-white text-black rounded-lg font-medium text-sm transition-all hover:bg-white/90"
+              >
+                Open Map
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+              <button
+                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-6 py-3 text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
+              >
+                Learn more
+              </button>
+            </div>
 
-      {/* Right Panel */}
-      <RightPanel
-        isOpen={rightPanelOpen}
-        onToggle={() => setRightPanelOpen(false)}
-      />
+            <div className="flex items-center gap-6 mt-16 text-xs font-mono text-white/25">
+              <span>ACLED</span>
+              <span className="w-px h-3 bg-white/10" />
+              <span>GDELT</span>
+              <span className="w-px h-3 bg-white/10" />
+              <span>Claude AI</span>
+            </div>
+          </div>
 
-      {/* Floating toggle buttons when panels are closed */}
-      {!leftPanelOpen && (
+          {/* Right — Globe */}
+          <div className="relative flex items-center justify-center">
+            <div className="w-full max-w-[520px] aspect-square relative">
+              {/* Subtle glow behind globe */}
+              <div className="absolute inset-0 rounded-full bg-red-900/[0.06] blur-[60px] scale-90" />
+              <CobeGlobe className="relative z-10" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="py-24 px-6 lg:px-12 border-t border-white/[0.04]">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-white/[0.04] rounded-xl overflow-hidden">
+            {FEATURES.map((f, i) => (
+              <div key={i} className="bg-[#08090d] p-8 hover:bg-white/[0.02] transition-colors">
+                <div className="text-white/30 mb-3">{f.icon}</div>
+                <h3 className="text-sm font-display font-bold text-white/80 mb-1">{f.title}</h3>
+                <p className="text-xs text-white/30 leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-20 px-6 text-center">
         <button
-          onClick={() => setLeftPanelOpen(true)}
-          className="fixed left-4 top-20 z-20 flex items-center gap-2 px-3 py-2 rounded-lg glass glass-hover transition-all"
+          onClick={() => router.push('/app')}
+          className="group inline-flex items-center gap-2 px-8 py-4 bg-white text-black rounded-lg font-medium transition-all hover:bg-white/90"
         >
-          <PanelLeft className="w-4 h-4 text-accent-glow/70" />
-          <span className="text-xs text-white/70">Conflicts</span>
+          Launch ConflictLens
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
         </button>
-      )}
+      </section>
 
-      {!rightPanelOpen && (
-        <button
-          onClick={() => setRightPanelOpen(true)}
-          className="fixed right-4 top-20 z-20 flex items-center gap-2 px-3 py-2 rounded-lg glass glass-hover transition-all"
-        >
-          <Layers className="w-4 h-4 text-accent-glow/70" />
-          <span className="text-xs text-white/70">Layers</span>
-        </button>
-      )}
-
-      {/* Timeline Bar */}
-      <TimelineBar onDateChange={handleDateChange} />
-
-      {/* Ambient corner gradients */}
-      <div className="fixed bottom-16 left-0 w-96 h-96 pointer-events-none z-[1] opacity-30"
-        style={{ background: 'radial-gradient(ellipse at bottom left, rgba(59,130,246,0.06), transparent 70%)' }}
-      />
-      <div className="fixed top-14 right-0 w-96 h-96 pointer-events-none z-[1] opacity-20"
-        style={{ background: 'radial-gradient(ellipse at top right, rgba(239,68,68,0.04), transparent 70%)' }}
-      />
-    </main>
+      {/* Footer */}
+      <footer className="border-t border-white/[0.04] py-8 px-6">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2 text-white/30">
+            <Globe2 className="w-4 h-4" />
+            <span className="text-xs font-medium">ConflictLens</span>
+          </div>
+          <p className="text-xs text-white/15 font-mono">YHack 2026</p>
+        </div>
+      </footer>
+    </div>
   );
 }

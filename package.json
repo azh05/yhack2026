@@ -17,6 +17,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "cobe": "^2.0.1",
     "lucide-react": "^0.383.0",
     "mapbox-gl": "^3.3.0",
     "next": "^16.2.1",

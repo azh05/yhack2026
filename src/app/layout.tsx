@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
   title: 'ConflictLens — AI-Powered Global Conflict Intelligence',
@@ -12,13 +13,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Quantico:ital,wght@0,400;0,700;1,400&family=Jura:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className="bg-surface text-white antialiased noise-overlay">
-        {children}
+      <body className="bg-surface text-foreground antialiased transition-colors duration-300 font-body">
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   MessageSquare,
   Send,
@@ -13,20 +13,22 @@ import {
   ChevronRight,
   Sparkles,
   X,
-  Info,
 } from 'lucide-react';
 import {
-  CONFLICT_ZONES,
   getSeverityColor,
-  getSeverityLabel,
   type ConflictZone,
 } from '@/data/conflicts';
+import { getConflictsAtDate } from '@/data/timeline';
+import type { MapFilters } from '@/data/filters';
 
 interface LeftPanelProps {
   isOpen: boolean;
   onToggle: () => void;
   onConflictSelect: (zone: ConflictZone) => void;
   selectedConflict: ConflictZone | null;
+  timelineDate: Date;
+  filters: MapFilters;
+  searchQuery?: string;
 }
 
 function TrendIcon({ trend }: { trend: string }) {
@@ -49,16 +51,31 @@ function TrendBadge({ trend }: { trend: string }) {
   );
 }
 
-export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict }: LeftPanelProps) {
+export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selectedConflict, timelineDate, filters, searchQuery = '' }: LeftPanelProps) {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<{ role: string; text: string }[]>([
     {
       role: 'assistant',
-      text: 'Welcome to ConflictLens AI. Ask me about any conflict zone, region safety, or current events. I can also navigate the map for you.',
+      text: 'Welcome to ConflictLens AI. Ask me about any conflict zone, region safety, or current events.',
     },
   ]);
 
-  const sortedZones = [...CONFLICT_ZONES].sort((a, b) => b.severity - a.severity);
+  // Get time-adjusted zones and apply filters + search
+  const sortedZones = useMemo(() => {
+    const zones = getConflictsAtDate(timelineDate);
+    const q = searchQuery.toLowerCase().trim();
+    return zones
+      .filter(zone => {
+        if (filters.selectedRegion !== 'All Regions' && zone.region !== filters.selectedRegion) return false;
+        if (zone.severity < filters.severityRange[0] || zone.severity > filters.severityRange[1]) return false;
+        if (q) {
+          const haystack = `${zone.name} ${zone.country} ${zone.region} ${zone.primaryType}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.severity - a.severity);
+  }, [timelineDate, filters, searchQuery]);
 
   const handleChatSend = () => {
     if (!chatInput.trim()) return;
@@ -67,7 +84,7 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
       { role: 'user', text: chatInput },
       {
         role: 'assistant',
-        text: `Analyzing "${chatInput}"... I'll search ACLED and GDELT data sources to provide a comprehensive briefing. This feature will use the Claude API for real-time conflict intelligence.`,
+        text: `Analyzing "${chatInput}"... Searching ACLED and GDELT data sources for a comprehensive briefing. This feature uses the Claude API for real-time conflict intelligence.`,
       },
     ]);
     setChatInput('');
@@ -77,13 +94,12 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
 
   return (
     <aside className="fixed left-0 top-14 bottom-[88px] w-[340px] z-30 flex flex-col glass border-r border-white/[0.04] animate-slide-up">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-severity-moderate" />
           <h2 className="text-sm font-display font-semibold text-white">Active Conflicts</h2>
           <span className="px-1.5 py-0.5 rounded bg-severity-high/10 text-severity-high text-2xs font-mono">
-            {CONFLICT_ZONES.length}
+            {sortedZones.length}
           </span>
         </div>
         <button
@@ -94,7 +110,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
         </button>
       </div>
 
-      {/* Conflict List */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-2 space-y-1">
           {sortedZones.map((zone) => {
@@ -105,14 +120,20 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
               <button
                 key={zone.id}
                 onClick={() => onConflictSelect(zone)}
-                className={`w-full group text-left px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                className={`w-full group text-left px-3 py-2.5 rounded-lg transition-all duration-200 relative overflow-hidden ${
                   isSelected
                     ? 'bg-accent/10 border border-accent/20'
                     : 'hover:bg-surface-300/40 border border-transparent'
                 }`}
               >
+                {/* Severity left bar */}
+                <div
+                  className={`absolute left-0 top-1 bottom-1 rounded-r transition-all duration-300 ${
+                    isSelected ? 'w-[3px] opacity-100' : 'w-[2px] opacity-0 group-hover:opacity-70'
+                  }`}
+                  style={{ backgroundColor: color, boxShadow: isSelected ? `0 0 8px ${color}60` : 'none' }}
+                />
                 <div className="flex items-start gap-2.5">
-                  {/* Severity dot */}
                   <div className="mt-1 shrink-0">
                     <div
                       className="w-2.5 h-2.5 rounded-full"
@@ -123,7 +144,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
                     />
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[13px] font-medium text-white/90 truncate group-hover:text-white transition-colors">
@@ -139,7 +159,7 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
 
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-2xs text-muted/70">{zone.country}</span>
-                      <span className="text-white/10">·</span>
+                      <span className="text-white/10">&middot;</span>
                       <span className="text-2xs text-muted/50">{zone.region}</span>
                     </div>
                     <div className="mt-1">
@@ -163,12 +183,16 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
               </button>
             );
           })}
+          {sortedZones.length === 0 && (
+            <div className="text-center py-8 text-muted/40 text-xs">
+              No conflicts match current filters
+            </div>
+          )}
         </div>
       </div>
 
-      {/* AI Chatbot Section */}
+      {/* AI Chat Section */}
       <div className="border-t border-white/[0.04]">
-        {/* Chat messages (minimal) */}
         <div className="max-h-32 overflow-y-auto p-3 space-y-2">
           {chatMessages.slice(-3).map((msg, i) => (
             <div
@@ -185,7 +209,6 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
           ))}
         </div>
 
-        {/* Input */}
         <div className="p-3 pt-0">
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-200/80 border border-white/[0.06] focus-within:border-accent/30 transition-colors">
             <MessageSquare className="w-3.5 h-3.5 text-muted/50 shrink-0" />
@@ -206,7 +229,7 @@ export default function LeftPanel({ isOpen, onToggle, onConflictSelect, selected
             </button>
           </div>
           <p className="text-center text-2xs text-muted/30 mt-1.5 font-mono">
-            Powered by Claude AI · ACLED + GDELT data
+            Powered by Claude AI &middot; ACLED + GDELT data
           </p>
         </div>
       </div>

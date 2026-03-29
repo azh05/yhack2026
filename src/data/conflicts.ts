@@ -42,6 +42,7 @@ export interface ConflictZone {
   fatalities30d: number;
   trend: 'escalating' | 'stable' | 'de-escalating';
   primaryType: string;
+  eventType: 'battles' | 'violence_civilians' | 'explosions' | 'protests' | 'riots' | 'strategic';
   description: string;
   aiAnalysis: AIAnalysis;
   newsSources: NewsSource[];
@@ -86,6 +87,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 3210,
     trend: 'stable',
     primaryType: 'Armed Conflict',
+    eventType: 'violence_civilians',
     description: 'Devastating military operation with extreme civilian toll and humanitarian crisis.',
     aiAnalysis: {
       background: 'The ongoing conflict in Gaza escalated dramatically following the October 2023 attacks. Since then, continuous military operations have resulted in unprecedented destruction of civilian infrastructure, including hospitals, schools, and residential buildings across the Strip.',
@@ -114,6 +116,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 1847,
     trend: 'escalating',
     primaryType: 'Armed Conflict',
+    eventType: 'battles',
     description: 'Ongoing civil war between SAF and RSF forces with widespread civilian casualties and mass displacement.',
     aiAnalysis: {
       background: 'The conflict between the Sudanese Armed Forces (SAF) and the Rapid Support Forces (RSF) erupted in April 2023 after months of tensions over the planned integration of the RSF into the regular military. What began as a power struggle between two military leaders has devolved into a devastating civil war.',
@@ -142,6 +145,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 2340,
     trend: 'stable',
     primaryType: 'Interstate War',
+    eventType: 'explosions',
     description: 'Full-scale interstate war with active frontlines across eastern and southern Ukraine.',
     aiAnalysis: {
       background: 'Russia launched a full-scale invasion of Ukraine in February 2022, expanding from the limited conflict in Donbas that began in 2014. The war has become the largest conventional military conflict in Europe since World War II, involving hundreds of thousands of troops on both sides.',
@@ -170,6 +174,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 623,
     trend: 'escalating',
     primaryType: 'Civil War',
+    eventType: 'battles',
     description: 'Multi-front civil war with ethnic armed organizations and resistance forces opposing military junta.',
     aiAnalysis: {
       background: 'Following the February 2021 military coup that overthrew the elected government, Myanmar descended into a multi-front civil war. Ethnic armed organizations (EAOs) that had fought the military for decades were joined by newly formed People\'s Defence Forces (PDFs) organized under the National Unity Government.',
@@ -198,6 +203,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 534,
     trend: 'escalating',
     primaryType: 'Jihadist Insurgency',
+    eventType: 'explosions',
     description: 'JNIM and ISGS forces attacking communities and military across Burkina Faso, Mali, and Niger.',
     aiAnalysis: {
       background: 'The Sahel insurgency, driven primarily by JNIM (linked to al-Qaeda) and the Islamic State in the Greater Sahara (ISGS), has expanded dramatically since 2019. Military coups in Mali, Burkina Faso, and Niger have disrupted counter-terrorism cooperation, and the withdrawal of French forces created security vacuums.',
@@ -226,6 +232,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 412,
     trend: 'escalating',
     primaryType: 'Armed Conflict',
+    eventType: 'battles',
     description: 'M23 and allied armed groups clashing with government forces in North Kivu and Ituri.',
     aiAnalysis: {
       background: 'Eastern DRC has experienced decades of armed conflict involving over 100 armed groups. The resurgence of the M23 movement, widely believed to be backed by Rwanda, has escalated tensions since late 2021. The region\'s vast mineral wealth fuels conflict financing and competition among armed groups.',
@@ -254,6 +261,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 298,
     trend: 'escalating',
     primaryType: 'Insurgency',
+    eventType: 'violence_civilians',
     description: 'Fano militia in Amhara and OLA in Oromia fighting federal forces across multiple fronts.',
     aiAnalysis: {
       background: 'While the Tigray war ended with the Pretoria Agreement in November 2022, new fronts have opened in Amhara and Oromia regions. Fano militias in Amhara, initially allied with federal forces during the Tigray conflict, turned against the government after the disarmament of regional forces. The Oromo Liberation Army (OLA) continues its insurgency in Oromia.',
@@ -282,6 +290,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 243,
     trend: 'stable',
     primaryType: 'Civil War',
+    eventType: 'explosions',
     description: 'Houthi-government conflict with ongoing military operations and humanitarian emergency.',
     aiAnalysis: {
       background: 'Yemen\'s civil war has been ongoing since 2014 when Houthi forces captured Sanaa. The Saudi-led coalition intervened in 2015. While a UN-brokered truce in 2022 significantly reduced hostilities, the underlying conflict remains unresolved. Houthi attacks on Red Sea shipping since late 2023 have added an international dimension.',
@@ -310,6 +319,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 178,
     trend: 'stable',
     primaryType: 'Counterterrorism',
+    eventType: 'battles',
     description: 'Ongoing operations against al-Shabaab in southern and central regions.',
     aiAnalysis: {
       background: 'Al-Shabaab, an al-Qaeda-affiliated group, has waged an insurgency in Somalia since 2006. Despite losing control of major cities, the group maintains significant rural territory and conducts regular attacks. The Somali government launched a major offensive in 2022 to reclaim territory.',
@@ -338,6 +348,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 187,
     trend: 'de-escalating',
     primaryType: 'Post-Conflict Transition',
+    eventType: 'strategic',
     description: 'Transitional government established post-Assad. Sporadic clashes between factions.',
     aiAnalysis: {
       background: 'After the fall of the Assad regime in late 2024, Syria entered a complex transitional period. Multiple armed factions that cooperated to overthrow Assad now compete for influence in the new political order. The country remains divided between various control zones.',
@@ -366,6 +377,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 112,
     trend: 'stable',
     primaryType: 'Gang Violence',
+    eventType: 'riots',
     description: 'Armed gangs controlling large sections of Port-au-Prince with extortion and kidnapping.',
     aiAnalysis: {
       background: 'Haiti has experienced a dramatic escalation of gang violence since the assassination of President Mo\u00efse in 2021. Armed gangs, which expanded during years of political instability, now control an estimated 80% of Port-au-Prince. The deployment of the Kenya-led Multinational Security Support (MSS) mission in 2024 has had limited impact.',
@@ -394,6 +406,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 64,
     trend: 'escalating',
     primaryType: 'Militia Activity',
+    eventType: 'explosions',
     description: 'Iranian-backed militia attacks on US bases and renewed ISIS activity in rural areas.',
     aiAnalysis: {
       background: 'Iraq faces a dual security challenge from Iranian-backed militias conducting attacks on US-led coalition bases and a low-level ISIS insurgency in rural areas. The broader regional tensions following the Gaza conflict have intensified militia activity.',
@@ -422,6 +435,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 267,
     trend: 'stable',
     primaryType: 'Organized Crime',
+    eventType: 'violence_civilians',
     description: 'Cartel territorial warfare concentrated in Sinaloa, Michoac\u00e1n, and Chiapas.',
     aiAnalysis: {
       background: 'Mexico\'s drug cartel violence has intensified following the capture of Sinaloa cartel leaders and the resulting power vacuum. The Jalisco New Generation Cartel (CJNG) continues to expand aggressively, while fragmented Sinaloa factions fight for control. Chiapas has emerged as a new conflict hotspot.',
@@ -450,6 +464,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 104,
     trend: 'escalating',
     primaryType: 'Insurgency',
+    eventType: 'protests',
     description: 'TTP and Baloch separatist attacks targeting security forces in western provinces.',
     aiAnalysis: {
       background: 'Pakistan faces a resurgent Tehrik-i-Taliban Pakistan (TTP) insurgency in Khyber Pakhtunkhwa province and a growing Baloch separatist movement in Balochistan. The TTP regrouped following the Taliban\'s return to power in Afghanistan, which provided safe havens across the border.',
@@ -478,6 +493,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 87,
     trend: 'stable',
     primaryType: 'Armed Conflict',
+    eventType: 'strategic',
     description: 'ELN, FARC dissidents, and other armed groups active in border regions and Pacific coast.',
     aiAnalysis: {
       background: 'Despite the 2016 peace accord with FARC, Colombia continues to face armed violence from the ELN guerrillas, FARC dissident groups (EMC and Segunda Marquetalia), and criminal organizations. President Petro\'s "Total Peace" policy of simultaneous negotiations with multiple groups has shown mixed results.',
@@ -506,6 +522,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 42,
     trend: 'de-escalating',
     primaryType: 'Cross-border Shelling',
+    eventType: 'explosions',
     description: 'Reduced cross-border exchanges after ceasefire, but tensions remain along the Blue Line.',
     aiAnalysis: {
       background: 'Southern Lebanon experienced its most intense conflict since 2006 following the October 2023 Gaza escalation, with Hezbollah and Israel exchanging daily cross-border fire. A ceasefire agreement in late 2024 has reduced hostilities, but violations continue.',
@@ -534,6 +551,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     fatalities30d: 234,
     trend: 'escalating',
     primaryType: 'Multi-Front Conflict',
+    eventType: 'riots',
     description: 'Boko Haram/ISWAP in the northeast, banditry in the northwest, and separatist tensions in the southeast.',
     aiAnalysis: {
       background: 'Nigeria faces concurrent security crises across multiple regions. The Boko Haram/ISWAP insurgency in the northeast has persisted since 2009. Armed banditry and cattle-rustling have devastated northwestern states. Separatist agitation by IPOB in the southeast adds another dimension.',
