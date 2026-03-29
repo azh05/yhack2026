@@ -105,7 +105,15 @@ export function buildZonesFromEvents(events: DBEvent[]): ConflictZone[] {
   const zones: ConflictZone[] = [];
   for (const [country, countryEvents] of byCountry) {
     const fatalities = countryEvents.reduce((sum, e) => sum + e.fatalities, 0);
-    const avgSeverity = countryEvents.reduce((sum, e) => sum + (e.severity_score ?? 5), 0) / countryEvents.length;
+    const eventCount = countryEvents.length;
+
+    // Severity: composite score from fatalities, event count, and fatality rate
+    // Uses log scale so high-conflict zones score proportionally higher
+    const fatalityScore = Math.min(10, Math.log10(fatalities + 1) * 2.5);      // 0-10, log scaled
+    const eventScore = Math.min(10, Math.log10(eventCount + 1) * 3);            // 0-10, log scaled
+    const fatalityRate = eventCount > 0 ? fatalities / eventCount : 0;
+    const rateScore = Math.min(10, fatalityRate * 2);                            // lethality per event
+    const severity = Math.round((fatalityScore * 0.45 + eventScore * 0.3 + rateScore * 0.25) * 10) / 10;
 
     // Centroid
     const lat = countryEvents.reduce((s, e) => s + e.latitude, 0) / countryEvents.length;
@@ -132,8 +140,8 @@ export function buildZonesFromEvents(events: DBEvent[]): ConflictZone[] {
       region,
       latitude: lat,
       longitude: lng,
-      severity: Math.round(avgSeverity * 10) / 10,
-      eventCount: countryEvents.length,
+      severity,
+      eventCount,
       fatalities30d: fatalities,
       trend: 'stable',
       primaryType,
