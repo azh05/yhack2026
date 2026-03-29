@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer as supabase } from "@/lib/supabase-server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -13,12 +13,14 @@ export async function GET(req: NextRequest) {
 
   // Check cache in ai_blurbs table
   const cacheThreshold = new Date(Date.now() - CACHE_MAX_AGE_HOURS * 60 * 60 * 1000).toISOString();
-  const { data: cached } = await supabase
+  const { data: cachedRows } = await supabase
     .from("ai_blurbs")
     .select("*")
     .eq("country", country)
     .gte("created_at", cacheThreshold)
-    .single();
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const cached = cachedRows?.[0] ?? null;
 
   if (cached && cached.blurb_text) {
     // Parse the cached blurb text back into structured briefing
@@ -102,11 +104,9 @@ ${context || "No recent event data available."}`;
     updated_at: new Date().toISOString(),
   };
 
-  // Cache in ai_blurbs table
-  await supabase
-    .from("ai_blurbs")
-    .upsert({ country, blurb_text: summary, created_at: new Date().toISOString() }, { onConflict: "country" })
-    .then(() => {});
+  // Cache in ai_blurbs table — delete old then insert fresh
+  await supabase.from("ai_blurbs").delete().eq("country", country);
+  await supabase.from("ai_blurbs").insert({ country, blurb_text: summary });
 
   return NextResponse.json({ briefing, cached: false });
 }

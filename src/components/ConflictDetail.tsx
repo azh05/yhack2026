@@ -512,7 +512,7 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
       </div>
 
       {/* Bottom actions */}
-      <div className="flex items-center gap-2 px-5 py-3 border-t border-white/[0.04] bg-surface-50/50">
+      <div className="flex items-center gap-2 px-5 py-3 border-t border-white/[0.04] bg-surface-50/50 relative z-50">
         <button
           onClick={() => onToggleWatch?.(zone.country)}
           className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-display font-semibold transition-colors shadow-lg ${
@@ -524,9 +524,20 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
           <BookmarkPlus className="w-4 h-4" />
           {isWatching ? "Watching" : "Watch Zone"}
         </button>
-        <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-300/50 hover:bg-surface-300/80 text-muted-light text-xs font-display font-medium transition-colors border border-white/[0.06]">
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}/conflict/${encodeURIComponent(zone.country)}`;
+            navigator.clipboard.writeText(url).then(() => {
+              const btn = document.getElementById('share-btn');
+              if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Share'; }, 2000); }
+            }).catch(() => {
+              window.open(url, '_blank');
+            });
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-300/50 hover:bg-surface-300/80 text-muted-light text-xs font-display font-medium transition-colors border border-white/[0.06]"
+        >
           <Share2 className="w-4 h-4" />
-          Share
+          <span id="share-btn">Share</span>
         </button>
       </div>
     </div>
