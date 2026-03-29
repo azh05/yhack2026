@@ -8,8 +8,9 @@ import RightPanel from "@/components/RightPanel";
 import ChatPanel from "@/components/ChatPanel";
 import TimelineBar from "@/components/TimelineBar";
 import ConflictDetail from "@/components/ConflictDetail";
-import { type ConflictZone } from "@/data/conflicts";
-import { useConflictEvents, filterEventsByDate } from "@/lib/useConflictEvents";
+import { type ConflictZone, EVENT_TYPES } from "@/data/conflicts";
+import { useConflictEvents } from "@/lib/useConflictEvents";
+import type { MapFilters } from "@/components/RightPanel";
 import { useAuth } from "@/lib/useAuth";
 import AuthModal from "@/components/AuthModal";
 import { PanelLeft, Layers, Bot } from "lucide-react";
@@ -43,13 +44,18 @@ export default function Home() {
   const [timelineDate, setTimelineDate] = useState(new Date());
   const [conflictZones, setConflictZones] = useState<ConflictZone[]>([]);
   const [zonesLoading, setZonesLoading] = useState(false);
-  const { events: dbEvents } = useConflictEvents();
+  const { events: dbEvents, earliestDate } = useConflictEvents(timelineDate);
   const { user, signUp, signIn, signOut } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [flyToTarget, setFlyToTarget] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
+  const [mapFilters, setMapFilters] = useState<MapFilters>({
+    activeEventTypes: new Set(EVENT_TYPES.map((t) => t.id)),
+    selectedRegion: "All Regions",
+    overlays: { heatmap: true, clusters: false, borders: false },
+  });
 
   const handleMapCommand = useCallback(
     (cmd: { action: string; country: string; lat: number; lng: number }) => {
@@ -146,6 +152,7 @@ export default function Home() {
         conflictZones={conflictZones}
         dbEvents={dbEvents}
         flyToTarget={flyToTarget}
+        filters={mapFilters}
       />
 
       <LeftPanel
@@ -167,6 +174,8 @@ export default function Home() {
       <RightPanel
         isOpen={rightPanelOpen}
         onToggle={() => setRightPanelOpen(false)}
+        filters={mapFilters}
+        onFiltersChange={setMapFilters}
       />
 
       <ChatPanel
@@ -206,15 +215,8 @@ export default function Home() {
 
       <TimelineBar
         onDateChange={handleDateChange}
-        eventCount={filterEventsByDate(dbEvents, timelineDate).length}
-        earliestDate={
-          dbEvents.length > 0
-            ? dbEvents.reduce(
-                (min, e) => (e.event_date < min ? e.event_date : min),
-                dbEvents[0].event_date,
-              )
-            : undefined
-        }
+        eventCount={dbEvents.length}
+        earliestDate={earliestDate}
       />
 
       <div

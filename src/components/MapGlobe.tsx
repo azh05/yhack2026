@@ -1,17 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
   getSeverityColor,
-  getSeverityLabel,
   type ConflictZone,
 } from "@/data/conflicts";
 import { type DBEvent, filterEventsByDate, buildGeoJSONFromEvents } from "@/lib/useConflictEvents";
+import type { MapFilters } from "@/components/RightPanel";
 
 mapboxgl.accessToken =
   process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN_HERE";
+
+// Map ACLED event_type strings to our filter IDs
+const EVENT_TYPE_MAP: Record<string, string> = {
+  "Battles": "battles",
+  "Violence against civilians": "violence_civilians",
+  "Explosions/Remote violence": "explosions",
+  "Protests": "protests",
+  "Riots": "riots",
+  "Strategic developments": "strategic",
+};
 
 interface MapGlobeProps {
   onConflictSelect: (zone: ConflictZone | null) => void;
@@ -20,6 +30,7 @@ interface MapGlobeProps {
   conflictZones: ConflictZone[];
   dbEvents?: DBEvent[];
   flyToTarget?: { lat: number; lng: number } | null;
+  filters?: MapFilters;
 }
 
 function buildGeoJSON(zones: ConflictZone[]) {
@@ -51,6 +62,7 @@ export default function MapGlobe({
   conflictZones,
   dbEvents = [],
   flyToTarget,
+  filters,
 }: MapGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -62,6 +74,38 @@ export default function MapGlobe({
   useEffect(() => {
     selectedIdRef.current = selectedConflict?.id ?? null;
   }, [selectedConflict]);
+
+  // Filter conflict zones based on layer filters
+  const filteredZones = useMemo(() => {
+    if (!filters) return conflictZones;
+    return conflictZones.filter((z) => {
+      // Region filter
+      if (filters.selectedRegion !== "All Regions" && z.region !== filters.selectedRegion) {
+        return false;
+      }
+      // Event type filter — match zone's primaryType against active types
+      const typeId = EVENT_TYPE_MAP[z.primaryType];
+      if (typeId && !filters.activeEventTypes.has(typeId)) {
+        return false;
+      }
+      return true;
+    });
+  }, [conflictZones, filters]);
+
+  // Filter DB events based on layer filters
+  const filteredDbEvents = useMemo(() => {
+    if (!filters) return dbEvents;
+    return dbEvents.filter((e) => {
+      // Region filter — DB events don't have a "region" but have country
+      // We skip region filtering for DB events as they lack region mapping
+      // Event type filter
+      const typeId = EVENT_TYPE_MAP[e.event_type];
+      if (typeId && !filters.activeEventTypes.has(typeId)) {
+        return false;
+      }
+      return true;
+    });
+  }, [dbEvents, filters]);
 
   // Create custom DOM marker for individual (unclustered) points
   const createMarkerEl = useCallback(
@@ -124,7 +168,7 @@ export default function MapGlobe({
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
 
-      conflictZones.forEach((zone) => {
+      filteredZones.forEach((zone) => {
         const el = createMarkerEl(zone);
         const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
           .setLngLat([zone.longitude, zone.latitude])
@@ -133,7 +177,7 @@ export default function MapGlobe({
         markersRef.current.push(marker);
       });
     },
-    [createMarkerEl, conflictZones],
+    [createMarkerEl, filteredZones],
   );
 
   // Initialize map
@@ -603,7 +647,7 @@ export default function MapGlobe({
     };
   }, []);
 
-  // Update map sources and markers when conflictZones prop changes
+  // Update map sources and markers when filtered zones change
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
 
@@ -611,18 +655,18 @@ export default function MapGlobe({
       | mapboxgl.GeoJSONSource
       | undefined;
     if (heatSource) {
-      heatSource.setData(buildGeoJSON(conflictZones));
+      heatSource.setData(buildGeoJSON(filteredZones));
     }
 
     const clusteredSource = map.current.getSource("conflicts-clustered") as
       | mapboxgl.GeoJSONSource
       | undefined;
     if (clusteredSource) {
-      clusteredSource.setData(buildGeoJSON(conflictZones));
+      clusteredSource.setData(buildGeoJSON(filteredZones));
     }
 
     addMarkers(map.current);
-  }, [conflictZones, mapLoaded, addMarkers]);
+  }, [filteredZones, mapLoaded, addMarkers]);
 
   // Fly to selected conflict
   useEffect(() => {
@@ -637,19 +681,43 @@ export default function MapGlobe({
     });
   }, [selectedConflict]);
 
-  // Update DB events on timeline change
+  // Update DB events on timeline change or filter change
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
-    const filtered = filterEventsByDate(dbEvents, timelineDate);
-    const geojson = buildGeoJSONFromEvents(filtered);
+    const geojson = buildGeoJSONFromEvents(filteredDbEvents);
 
     const heatSource = m.getSource("db-events-heat") as mapboxgl.GeoJSONSource;
     if (heatSource) heatSource.setData(geojson);
 
     const circleSource = m.getSource("db-events-circles") as mapboxgl.GeoJSONSource;
     if (circleSource) circleSource.setData(geojson);
-  }, [dbEvents, timelineDate, mapLoaded]);
+  }, [filteredDbEvents, timelineDate, mapLoaded]);
+
+  // Toggle overlay layer visibility based on filter settings
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !filters) return;
+    const m = map.current;
+
+    // Heatmap layers
+    const heatVis = filters.overlays.heatmap ? "visible" : "none";
+    if (m.getLayer("conflict-heatmap")) m.setLayoutProperty("conflict-heatmap", "visibility", heatVis);
+    if (m.getLayer("db-events-heatmap")) m.setLayoutProperty("db-events-heatmap", "visibility", heatVis);
+
+    // Cluster layers
+    const clusterVis = filters.overlays.clusters ? "visible" : "none";
+    if (m.getLayer("cluster-glow")) m.setLayoutProperty("cluster-glow", "visibility", clusterVis);
+    if (m.getLayer("clusters")) m.setLayoutProperty("clusters", "visibility", clusterVis);
+    if (m.getLayer("cluster-count")) m.setLayoutProperty("cluster-count", "visibility", clusterVis);
+    if (m.getLayer("db-clusters")) m.setLayoutProperty("db-clusters", "visibility", clusterVis);
+    if (m.getLayer("db-cluster-count")) m.setLayoutProperty("db-cluster-count", "visibility", clusterVis);
+
+    // Border layers
+    const borderVis = filters.overlays.borders ? "visible" : "none";
+    if (m.getLayer("admin-0-boundary")) m.setLayoutProperty("admin-0-boundary", "visibility", borderVis);
+    if (m.getLayer("admin-0-boundary-disputed")) m.setLayoutProperty("admin-0-boundary-disputed", "visibility", borderVis);
+    if (m.getLayer("admin-1-boundary")) m.setLayoutProperty("admin-1-boundary", "visibility", borderVis);
+  }, [filters?.overlays, mapLoaded]);
 
   // Fly to chat target
   useEffect(() => {

@@ -20,9 +20,17 @@ import {
 } from "lucide-react";
 import { EVENT_TYPES, REGIONS } from "@/data/conflicts";
 
+export interface MapFilters {
+  activeEventTypes: Set<string>;
+  selectedRegion: string;
+  overlays: Record<string, boolean>;
+}
+
 interface RightPanelProps {
   isOpen: boolean;
   onToggle: () => void;
+  filters: MapFilters;
+  onFiltersChange: (filters: MapFilters) => void;
 }
 
 const LAYER_ICONS: Record<string, React.ReactNode> = {
@@ -34,34 +42,25 @@ const LAYER_ICONS: Record<string, React.ReactNode> = {
   strategic: <Landmark className="w-3.5 h-3.5" />,
 };
 
-const OVERLAYS = [
+const OVERLAY_DEFS = [
   {
     id: "heatmap",
     label: "Severity Heatmap",
     icon: <Thermometer className="w-3.5 h-3.5" />,
-    active: true,
   },
   {
     id: "clusters",
     label: "Event Clusters",
     icon: <BarChart3 className="w-3.5 h-3.5" />,
-    active: false,
   },
   {
     id: "borders",
     label: "Conflict Borders",
     icon: <Landmark className="w-3.5 h-3.5" />,
-    active: false,
   },
 ];
 
-export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
-  const [activeTypes, setActiveTypes] = useState<Set<string>>(
-    new Set(EVENT_TYPES.map((t) => t.id)),
-  );
-  const [selectedRegion, setSelectedRegion] = useState("All Regions");
-  const [overlays, setOverlays] = useState(OVERLAYS);
-  const [severityRange, setSeverityRange] = useState([1, 10]);
+export default function RightPanel({ isOpen, onToggle, filters, onFiltersChange }: RightPanelProps) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -69,18 +68,17 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
   }, []);
 
   const toggleType = (id: string) => {
-    setActiveTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(filters.activeEventTypes);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onFiltersChange({ ...filters, activeEventTypes: next });
   };
 
   const toggleOverlay = (id: string) => {
-    setOverlays((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, active: !o.active } : o)),
-    );
+    onFiltersChange({
+      ...filters,
+      overlays: { ...filters.overlays, [id]: !filters.overlays[id] },
+    });
   };
 
   if (!isOpen) return null;
@@ -111,8 +109,8 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
           </label>
           <div className="relative">
             <select
-              value={selectedRegion}
-              onChange={(e) => setSelectedRegion(e.target.value)}
+              value={filters.selectedRegion}
+              onChange={(e) => onFiltersChange({ ...filters, selectedRegion: e.target.value })}
               className="w-full appearance-none px-3 py-2 rounded-lg bg-surface-200/80 border border-white/[0.06] text-xs text-white/80 outline-none focus:border-accent/30 transition-colors cursor-pointer"
             >
               {REGIONS.map((r) => (
@@ -132,7 +130,7 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
           </label>
           <div className="space-y-1">
             {EVENT_TYPES.map((type) => {
-              const isActive = activeTypes.has(type.id);
+              const isActive = filters.activeEventTypes.has(type.id);
               return (
                 <button
                   key={type.id}
@@ -199,27 +197,30 @@ export default function RightPanel({ isOpen, onToggle }: RightPanelProps) {
             Overlays
           </label>
           <div className="space-y-1">
-            {overlays.map((overlay) => (
-              <button
-                key={overlay.id}
-                onClick={() => toggleOverlay(overlay.id)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200 ${
-                  overlay.active
-                    ? "bg-accent/10 text-accent-glow/90 border border-accent/15"
-                    : "text-muted/50 hover:text-muted-light hover:bg-surface-300/20 border border-transparent"
-                }`}
-              >
-                {overlay.icon}
-                <span>{overlay.label}</span>
-                <div className="ml-auto">
-                  {overlay.active ? (
-                    <Eye className="w-3 h-3 text-accent-glow/40" />
-                  ) : (
-                    <EyeOff className="w-3 h-3 text-muted/20" />
-                  )}
-                </div>
-              </button>
-            ))}
+            {OVERLAY_DEFS.map((overlay) => {
+              const isActive = filters.overlays[overlay.id] ?? false;
+              return (
+                <button
+                  key={overlay.id}
+                  onClick={() => toggleOverlay(overlay.id)}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200 ${
+                    isActive
+                      ? "bg-accent/10 text-accent-glow/90 border border-accent/15"
+                      : "text-muted/50 hover:text-muted-light hover:bg-surface-300/20 border border-transparent"
+                  }`}
+                >
+                  {overlay.icon}
+                  <span>{overlay.label}</span>
+                  <div className="ml-auto">
+                    {isActive ? (
+                      <Eye className="w-3 h-3 text-accent-glow/40" />
+                    ) : (
+                      <EyeOff className="w-3 h-3 text-muted/20" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
