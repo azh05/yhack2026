@@ -1,4 +1,4 @@
-# ConflictLens
+# Love Over War
 
 **AI-Powered Global Conflict Intelligence Platform**
 *YHack Spring 2026 · Societal Impact Track*

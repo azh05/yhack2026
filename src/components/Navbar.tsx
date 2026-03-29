@@ -125,7 +125,7 @@ export default function Navbar({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="font-display text-[15px] font-bold tracking-tight text-white">
-              ConflictLens
+              Love Over War
             </span>
             <span className="text-2xs font-mono text-orange-400/70 tracking-wider uppercase">
               Beta

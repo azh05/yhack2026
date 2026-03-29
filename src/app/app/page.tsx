@@ -246,7 +246,7 @@ export default function AppPage() {
             className="flex items-center gap-2 px-3 py-2 rounded-lg glass glass-hover transition-all"
           >
             <Bot className="w-4 h-4 text-accent-glow/70" />
-            <span className="text-xs text-white/70">War AI</span>
+            <span className="text-xs text-white/70">Mars</span>
           </button>
         </div>
       )}

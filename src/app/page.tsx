@@ -148,7 +148,7 @@ export default function LandingPage() {
           onClick={() => router.push("/app")}
           className="group inline-flex items-center gap-2 px-8 py-4 bg-white text-black rounded-lg font-medium transition-all hover:bg-white/90"
         >
-          Launch ConflictLens
+          Launch Love Over War
           <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
         </button>
       </section>
@@ -158,7 +158,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-white/30">
             <Globe2 className="w-4 h-4" />
-            <span className="text-xs font-medium">ConflictLens</span>
+            <span className="text-xs font-medium">Love Over War</span>
           </div>
           <p className="text-xs text-white/15 font-mono">YHack 2026</p>
         </div>

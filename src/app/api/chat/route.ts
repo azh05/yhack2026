@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
   const conflictData = await queryConflictData(countries);
 
   // Step 3: Generate response with the targeted data
-  const systemPrompt = `You are War AI, a conflict intelligence assistant on an interactive 3D globe platform. You have access to ACLED conflict event data.
+  const systemPrompt = `You are Mars, a conflict intelligence assistant on an interactive 3D globe platform. You have access to ACLED conflict event data.
 
 Use your own knowledge about global conflicts PLUS the database data below to answer questions. If the database doesn't have data for a country, use your general knowledge — don't say "I don't have data."
 
@@ -136,7 +136,7 @@ Keep responses concise (2-4 paragraphs). Be factual and neutral.`;
         role: "model",
         parts: [
           {
-            text: "Understood. I'm War AI with access to ACLED data and general conflict knowledge. I can answer questions and navigate the globe.",
+            text: "Understood. I'm Mars with access to ACLED data and general conflict knowledge. I can answer questions and navigate the globe.",
           },
         ],
       },
