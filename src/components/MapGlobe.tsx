@@ -70,10 +70,25 @@ export default function MapGlobe({
 
   const [mapLoaded, setMapLoaded] = useState(false);
   const selectedIdRef = useRef<string | null>(null);
+  const conflictZonesRef = useRef(conflictZones);
+  const visibleZonesRef = useRef(visibleZones);
+  const onConflictSelectRef = useRef(onConflictSelect);
 
   useEffect(() => {
     selectedIdRef.current = selectedConflict?.id ?? null;
   }, [selectedConflict]);
+
+  useEffect(() => {
+    conflictZonesRef.current = conflictZones;
+  }, [conflictZones]);
+
+  useEffect(() => {
+    visibleZonesRef.current = visibleZones;
+  }, [visibleZones]);
+
+  useEffect(() => {
+    onConflictSelectRef.current = onConflictSelect;
+  }, [onConflictSelect]);
 
   const handleZoomIn = useCallback(() => {
     map.current?.zoomIn({ duration: 300 });
@@ -536,6 +551,29 @@ export default function MapGlobe({
       m.on("mouseleave", "db-events-points", () => {
         m.getCanvas().style.cursor = "";
         dbPopup.remove();
+      });
+
+      // Click a dot → zoom in and open briefing for that country
+      m.on("click", "db-events-points", (e) => {
+        if (!e.features || !e.features[0]) return;
+        const props = e.features[0].properties!;
+        const country = props.country as string;
+        if (!country) return;
+        const coords = (e.features[0].geometry as GeoJSON.Point).coordinates as [number, number];
+        m.flyTo({
+          center: coords,
+          zoom: 5.5,
+          pitch: 45,
+          bearing: -10,
+          duration: 1500,
+          essential: true,
+        });
+        // Find and select the matching conflict zone
+        const zones = conflictZonesRef.current.length > 0 ? conflictZonesRef.current : visibleZonesRef.current;
+        const zone = zones.find((z) => z.country === country);
+        if (zone) {
+          onConflictSelectRef.current(zone);
+        }
       });
 
       m.on("click", "db-clusters", (e) => {
