@@ -146,7 +146,10 @@ export default function ConflictDetail({
     let cancelled = false;
     setAiLoading(true);
     fetch(`/api/briefing?country=${encodeURIComponent(zone.country)}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Briefing API returned ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
         if (cancelled || !data?.briefing) return;
         const b = data.briefing;
@@ -185,7 +188,10 @@ export default function ConflictDetail({
     fetch(
       `/api/news?country=${encodeURIComponent(zone.country)}&keyword=conflict&limit=8`,
     )
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`News API returned ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
         if (cancelled) return;
         const articles = (data.articles ?? []) as {

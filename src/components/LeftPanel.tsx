@@ -158,7 +158,7 @@ export default function LeftPanel({
               : "text-muted/40 hover:text-muted-light"
           }`}
         >
-          All ({conflictZones.length})
+          All ({sortedZones.length})
         </button>
         <button
           onClick={() => {
