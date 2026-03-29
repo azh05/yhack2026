@@ -1,12 +1,26 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
-  Globe2, ArrowLeft, Skull, MapPin, AlertTriangle,
-  TrendingUp, TrendingDown, Minus, Newspaper, ExternalLink, Loader2, Share2,
-  MessageSquare, Send, Sparkles, Bot, ChevronDown,
-} from 'lucide-react';
+  Globe2,
+  ArrowLeft,
+  Skull,
+  MapPin,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Newspaper,
+  ExternalLink,
+  Loader2,
+  Share2,
+  MessageSquare,
+  Send,
+  Sparkles,
+  Bot,
+  ChevronDown,
+} from "lucide-react";
 
 interface Briefing {
   country: string;
@@ -30,11 +44,14 @@ function CountryOutline({ country }: { country: string }) {
 
   useEffect(() => {
     // Fetch country GeoJSON from a free API
-    fetch(`https://nominatim.openstreetmap.org/search?country=${encodeURIComponent(country)}&polygon_geojson=1&format=json&limit=1`, {
-      headers: { 'User-Agent': 'ConflictLens/1.0' },
-    })
-      .then(res => res.json())
-      .then(data => {
+    fetch(
+      `https://nominatim.openstreetmap.org/search?country=${encodeURIComponent(country)}&polygon_geojson=1&format=json&limit=1`,
+      {
+        headers: { "User-Agent": "ConflictLens/1.0" },
+      },
+    )
+      .then((res) => res.json())
+      .then((data) => {
         if (!data?.[0]?.geojson) return;
         const geo = data[0].geojson;
         const bbox = data[0].boundingbox;
@@ -74,22 +91,28 @@ function geoToSvgPaths(geojson: any, bbox: string[]): string[] {
   const padding = 40;
 
   const project = (lng: number, lat: number): [number, number] => {
-    const x = padding + ((lng - minLng) / (maxLng - minLng)) * (width - padding * 2);
-    const y = padding + ((maxLat - lat) / (maxLat - minLat)) * (height - padding * 2);
+    const x =
+      padding + ((lng - minLng) / (maxLng - minLng)) * (width - padding * 2);
+    const y =
+      padding + ((maxLat - lat) / (maxLat - minLat)) * (height - padding * 2);
     return [x, y];
   };
 
   const ringToPath = (ring: number[][]) => {
-    return ring.map((coord, i) => {
-      const [x, y] = project(coord[0], coord[1]);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ') + ' Z';
+    return (
+      ring
+        .map((coord, i) => {
+          const [x, y] = project(coord[0], coord[1]);
+          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ") + " Z"
+    );
   };
 
   const paths: string[] = [];
-  if (geojson.type === 'Polygon') {
+  if (geojson.type === "Polygon") {
     paths.push(ringToPath(geojson.coordinates[0]));
-  } else if (geojson.type === 'MultiPolygon') {
+  } else if (geojson.type === "MultiPolygon") {
     for (const polygon of geojson.coordinates) {
       paths.push(ringToPath(polygon[0]));
     }
@@ -110,21 +133,23 @@ export default function ConflictPage() {
 
   useEffect(() => {
     fetch(`/api/briefing?country=${encodeURIComponent(country)}`)
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data.briefing) setBriefing(data.briefing);
       })
       .catch(() => {})
       .finally(() => setBriefingLoading(false));
 
-    fetch(`/api/news?country=${encodeURIComponent(country)}&keyword=conflict&limit=8`)
-      .then(res => res.json())
-      .then(data => {
+    fetch(
+      `/api/news?country=${encodeURIComponent(country)}&keyword=conflict&limit=8`,
+    )
+      .then((res) => res.json())
+      .then((data) => {
         const articles = (data.articles ?? []).map((a: any) => ({
           title: a.title,
           url: a.url,
-          source_country: a.source || '',
-          seendate: a.pubDate || a.pub_date || '',
+          source_country: a.source || "",
+          seendate: a.pubDate || a.pub_date || "",
         }));
         setNews(articles);
       })
@@ -146,7 +171,7 @@ export default function ConflictPage() {
       <header className="border-b border-white/[0.04] px-6 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <button
-            onClick={() => router.push('/app')}
+            onClick={() => router.push("/app")}
             className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -163,7 +188,9 @@ export default function ConflictPage() {
         {/* Title */}
         <div className="mb-8">
           <h1 className="text-3xl font-display font-bold">{country}</h1>
-          <p className="text-sm text-white/40 mt-1">Conflict Intelligence Briefing</p>
+          <p className="text-sm text-white/40 mt-1">
+            Conflict Intelligence Briefing
+          </p>
         </div>
 
         {/* Share */}
@@ -172,7 +199,7 @@ export default function ConflictPage() {
           className="flex items-center gap-2 px-4 py-2 mb-8 rounded-lg bg-surface-200/50 border border-white/[0.06] text-xs text-white/60 hover:text-white hover:bg-surface-200/80 transition-colors"
         >
           <Share2 className="w-3.5 h-3.5" />
-          {copied ? 'Link copied!' : 'Share this briefing'}
+          {copied ? "Link copied!" : "Share this briefing"}
         </button>
 
         {/* AI Briefing */}
@@ -186,21 +213,30 @@ export default function ConflictPage() {
             <Section title="Background" icon={<Globe2 className="w-4 h-4" />}>
               {briefing.background}
             </Section>
-            <Section title="Current Situation" icon={<AlertTriangle className="w-4 h-4" />}>
+            <Section
+              title="Current Situation"
+              icon={<AlertTriangle className="w-4 h-4" />}
+            >
               {briefing.current_situation}
             </Section>
             {briefing.key_actors.length > 0 && (
               <Section title="Key Actors" icon={<MapPin className="w-4 h-4" />}>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {briefing.key_actors.map((actor, i) => (
-                    <span key={i} className="px-2.5 py-1 rounded-lg bg-surface-200/50 border border-white/[0.06] text-xs text-white/70">
+                    <span
+                      key={i}
+                      className="px-2.5 py-1 rounded-lg bg-surface-200/50 border border-white/[0.06] text-xs text-white/70"
+                    >
                       {actor}
                     </span>
                   ))}
                 </div>
               </Section>
             )}
-            <Section title="Humanitarian Impact" icon={<Skull className="w-4 h-4" />}>
+            <Section
+              title="Humanitarian Impact"
+              icon={<Skull className="w-4 h-4" />}
+            >
               {briefing.humanitarian_impact}
             </Section>
             <Section title="Outlook" icon={<TrendingUp className="w-4 h-4" />}>
@@ -239,7 +275,8 @@ export default function ConflictPage() {
                       {article.title}
                     </p>
                     <p className="text-xs text-white/30 mt-1">
-                      {article.source_country} · {article.seendate?.slice(0, 10) || ''}
+                      {article.source_country} ·{" "}
+                      {article.seendate?.slice(0, 10) || ""}
                     </p>
                   </div>
                   <ExternalLink className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 shrink-0 mt-1" />
@@ -255,7 +292,7 @@ export default function ConflictPage() {
         {/* Footer */}
         <div className="border-t border-white/[0.04] mt-10 pt-6 text-center">
           <p className="text-xs text-white/20 font-mono">
-            Generated by ConflictLens · ACLED + GDELT data · Powered by Gemini AI
+            Generated by ConflictLens · ACLED data · Powered by Gemini AI
           </p>
         </div>
       </main>
@@ -263,48 +300,63 @@ export default function ConflictPage() {
   );
 }
 
-function BriefingChat({ country, briefing }: { country: string; briefing: Briefing | null }) {
+function BriefingChat({
+  country,
+  briefing,
+}: {
+  country: string;
+  briefing: Briefing | null;
+}) {
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([
     {
-      role: 'assistant',
+      role: "assistant",
       text: `Ask me anything about the conflict in ${country}. I can go deeper on any section of the briefing, explain key actors, historical context, or humanitarian implications.`,
     },
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", text: userMessage }]);
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: `[Context: User is reading the conflict briefing for ${country}. Briefing summary: ${briefing ? `Background: ${briefing.background?.slice(0, 200)}. Situation: ${briefing.current_situation?.slice(0, 200)}` : 'Not yet loaded.'}]\n\n${userMessage}`,
+          message: `[Context: User is reading the conflict briefing for ${country}. Briefing summary: ${briefing ? `Background: ${briefing.background?.slice(0, 200)}. Situation: ${briefing.current_situation?.slice(0, 200)}` : "Not yet loaded."}]\n\n${userMessage}`,
           history: messages.slice(-10),
         }),
       });
 
       const data = await res.json();
       if (data.error) {
-        setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${data.error}` }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", text: `Error: ${data.error}` },
+        ]);
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', text: data.response }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", text: data.response },
+        ]);
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', text: 'Failed to connect. Please try again.' }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: "Failed to connect. Please try again." },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -318,7 +370,9 @@ function BriefingChat({ country, briefing }: { country: string; briefing: Briefi
       >
         <Bot className="w-4 h-4 text-accent-glow" />
         Ask AI — Go Deeper
-        <ChevronDown className={`w-3.5 h-3.5 text-white/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-white/30 transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (
@@ -328,19 +382,21 @@ function BriefingChat({ country, briefing }: { country: string; briefing: Briefi
             {messages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
                   className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-accent/20 text-white/90 border border-accent/20'
-                      : 'bg-surface-200/80 text-white/70 border border-white/[0.04]'
+                    msg.role === "user"
+                      ? "bg-accent/20 text-white/90 border border-accent/20"
+                      : "bg-surface-200/80 text-white/70 border border-white/[0.04]"
                   }`}
                 >
-                  {msg.role === 'assistant' && (
+                  {msg.role === "assistant" && (
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Sparkles className="w-3 h-3 text-accent-glow/60" />
-                      <span className="text-2xs font-mono text-accent-glow/50">WAR AI</span>
+                      <span className="text-2xs font-mono text-accent-glow/50">
+                        WAR AI
+                      </span>
                     </div>
                   )}
                   <div className="whitespace-pre-wrap">{msg.text}</div>
@@ -368,7 +424,7 @@ function BriefingChat({ country, briefing }: { country: string; briefing: Briefi
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 placeholder={`Ask about ${country}...`}
                 className="flex-1 bg-transparent text-sm text-white/90 placeholder:text-white/25 outline-none font-body"
                 disabled={isLoading}
@@ -388,16 +444,22 @@ function BriefingChat({ country, briefing }: { country: string; briefing: Briefi
   );
 }
 
-function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <h3 className="flex items-center gap-2 text-xs font-mono text-white/40 uppercase tracking-wider mb-2">
         {icon}
         {title}
       </h3>
-      <div className="text-sm text-white/70 leading-relaxed">
-        {children}
-      </div>
+      <div className="text-sm text-white/70 leading-relaxed">{children}</div>
     </div>
   );
 }

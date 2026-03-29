@@ -330,7 +330,7 @@ export default function ConflictDetail({
             AI Intelligence Briefing
           </span>
           <span className="ml-auto text-2xs font-mono text-muted/30">
-            Powered by Claude
+            Powered by Gemini AI
           </span>
         </div>
 
@@ -453,7 +453,7 @@ export default function ConflictDetail({
         {/* Data Attribution */}
         <div className="px-5 py-2">
           <p className="text-2xs text-muted/30 font-mono">
-            Generated from ACLED + GDELT data sources · Powered by Gemini AI
+            Generated from ACLED data · Powered by Gemini AI
           </p>
         </div>
 
@@ -466,13 +466,15 @@ export default function ConflictDetail({
                 News Sources
               </span>
             </div>
-            <span className="text-2xs font-mono text-muted/40">via GDELT</span>
+            <span className="text-2xs font-mono text-muted/40">
+              via Google News
+            </span>
           </div>
           {newsLoading && (
             <div className="flex items-center gap-2 py-4 justify-center text-muted/50">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-2xs font-mono">
-                Fetching news via GDELT...
+                Fetching news via Google News...
               </span>
             </div>
           )}
