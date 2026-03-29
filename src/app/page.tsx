@@ -9,7 +9,7 @@ import ChatPanel from "@/components/ChatPanel";
 import TimelineBar from "@/components/TimelineBar";
 import ConflictDetail from "@/components/ConflictDetail";
 import { type ConflictZone, EVENT_TYPES } from "@/data/conflicts";
-import { useConflictEvents } from "@/lib/useConflictEvents";
+import { useConflictEvents, aggregateEventsToZones } from "@/lib/useConflictEvents";
 import type { MapFilters } from "@/components/RightPanel";
 import { useAuth } from "@/lib/useAuth";
 import AuthModal from "@/components/AuthModal";
@@ -42,9 +42,7 @@ export default function Home() {
   const [selectedConflict, setSelectedConflict] =
     useState<ConflictZone | null>(null);
   const [timelineDate, setTimelineDate] = useState(new Date());
-  const [conflictZones, setConflictZones] = useState<ConflictZone[]>([]);
-  const [zonesLoading, setZonesLoading] = useState(false);
-  const { events: dbEvents, earliestDate } = useConflictEvents(timelineDate);
+  const { events: dbEvents, earliestDate, loading: eventsLoading } = useConflictEvents(timelineDate);
   const { user, signUp, signIn, signOut } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [flyToTarget, setFlyToTarget] = useState<{
@@ -74,42 +72,14 @@ export default function Home() {
     }
   }, [signUp, signIn]);
 
-  const fetchZones = useCallback(async () => {
-    setZonesLoading(true);
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
-    try {
-      const res = await fetch(`${backendUrl}/api/conflict-zones`);
-      if (!res.ok) throw new Error(`API responded ${res.status}`);
-      const data = await res.json();
-      const zones: ConflictZone[] = data.map(
-        (
-          item: Omit<ConflictZone, "aiAnalysis" | "newsSources" | "events">,
-        ) => ({
-          ...item,
-          aiAnalysis: {
-            background: "",
-            currentSituation: "",
-            humanitarianImpact: "",
-            outlook: "",
-            keyActors: [],
-          },
-          newsSources: [],
-          events: [],
-        }),
-      );
-      setConflictZones(zones);
-    } catch (err) {
-      console.error("[fetchZones]", err);
-      setConflictZones([]);
-    } finally {
-      setZonesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchZones();
-  }, []);
+  // Aggregate DB events into country-level zones dynamically
+  const conflictZones: ConflictZone[] = aggregateEventsToZones(dbEvents).map(z => ({
+    ...z,
+    aiAnalysis: { background: "", currentSituation: "", humanitarianImpact: "", outlook: "", keyActors: [] },
+    newsSources: [],
+    events: [],
+  }));
+  const zonesLoading = eventsLoading;
 
   const handleConflictSelect = useCallback(
     (zone: ConflictZone | null) => {

@@ -74,7 +74,7 @@ async def get_conflict_zones(
     # ACLED data availability lags ~1 year; use a recent available window
     # so the demo always returns data.
     if start_date is None:
-        start_date = "2025-02-01"
+        start_date = "2024-01-01"
     if end_date is None:
         end_date = "2025-03-28"
 

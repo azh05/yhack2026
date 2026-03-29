@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface DBEvent {
   id: number;
@@ -21,42 +21,124 @@ export interface DBEvent {
   created_at: string;
 }
 
-export function useConflictEvents() {
+export function useConflictEvents(timelineDate: Date) {
   const [events, setEvents] = useState<DBEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [earliestDate, setEarliestDate] = useState<string | undefined>();
+  const lastFetchedWindow = useRef<string>('');
 
-  const fetchEvents = useCallback(async () => {
+  const fetchEvents = useCallback(async (date: Date) => {
+    const endStr = date.toISOString().split('T')[0];
+    const windowStart = new Date(date);
+    windowStart.setDate(windowStart.getDate() - 60);
+    const startStr = windowStart.toISOString().split('T')[0];
+
+    // Don't refetch if we're in the same window (rounded to week)
+    const windowKey = `${startStr.slice(0, 7)}-${endStr.slice(0, 7)}`;
+    if (windowKey === lastFetchedWindow.current) return;
+    lastFetchedWindow.current = windowKey;
+
     try {
       setLoading(true);
-      const res = await fetch('/api/events?limit=5000');
+      const res = await fetch(`/api/events?start_date=${startStr}&end_date=${endStr}&limit=50000`);
       const data = await res.json();
       if (data.error) {
         setError(data.error);
       } else {
         setEvents(data.events || []);
       }
-    } catch (err) {
+    } catch {
       setError('Failed to fetch events');
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Set earliest date to match our data
   useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+    setEarliestDate('2024-01-06');
+  }, []);
 
-  return { events, loading, error, refetch: fetchEvents };
+  useEffect(() => {
+    fetchEvents(timelineDate);
+  }, [timelineDate, fetchEvents]);
+
+  return { events, loading, error, earliestDate };
 }
 
-// Filter events within a 60-day rolling window up to the current date
-export function filterEventsByDate(events: DBEvent[], date: Date): DBEvent[] {
-  const endStr = date.toISOString().split('T')[0];
-  const windowStart = new Date(date);
-  windowStart.setDate(windowStart.getDate() - 60);
-  const startStr = windowStart.toISOString().split('T')[0];
-  return events.filter(e => e.event_date >= startStr && e.event_date <= endStr);
+// No-op filter since we fetch the window server-side now
+export function filterEventsByDate(events: DBEvent[]): DBEvent[] {
+  return events;
+}
+
+// Aggregate DB events into country-level zones for the left panel & navbar
+export function aggregateEventsToZones(events: DBEvent[]): {
+  id: string;
+  name: string;
+  country: string;
+  region: string;
+  latitude: number;
+  longitude: number;
+  severity: number;
+  eventCount: number;
+  fatalities30d: number;
+  trend: 'escalating' | 'stable' | 'de-escalating';
+  primaryType: string;
+  description: string;
+}[] {
+  const EXCLUDED_TYPES = new Set(['Protests', 'Strategic developments']);
+  const filtered = events.filter(e => !EXCLUDED_TYPES.has(e.event_type));
+
+  const byCountry: Record<string, DBEvent[]> = {};
+  for (const e of filtered) {
+    if (!byCountry[e.country]) byCountry[e.country] = [];
+    byCountry[e.country].push(e);
+  }
+
+  return Object.entries(byCountry)
+    .map(([country, evts]) => {
+      const totalFatalities = evts.reduce((s, e) => s + e.fatalities, 0);
+      const avgSeverity = evts.reduce((s, e) => s + (e.severity_score || 1), 0) / evts.length;
+      const maxSeverity = Math.max(...evts.map(e => e.severity_score || 1));
+      const severity = Math.round(Math.min(10, (avgSeverity * 0.4 + maxSeverity * 0.6)) * 10) / 10;
+
+      // Centroid
+      const lat = evts.reduce((s, e) => s + e.latitude, 0) / evts.length;
+      const lng = evts.reduce((s, e) => s + e.longitude, 0) / evts.length;
+
+      // Most common event type
+      const typeCounts: Record<string, number> = {};
+      for (const e of evts) {
+        typeCounts[e.event_type] = (typeCounts[e.event_type] || 0) + 1;
+      }
+      const primaryType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
+
+      // Simple trend: compare first half vs second half event counts
+      const sorted = [...evts].sort((a, b) => a.event_date.localeCompare(b.event_date));
+      const mid = Math.floor(sorted.length / 2);
+      const firstHalf = sorted.slice(0, mid).length;
+      const secondHalf = sorted.slice(mid).length;
+      let trend: 'escalating' | 'stable' | 'de-escalating' = 'stable';
+      if (secondHalf > firstHalf * 1.2) trend = 'escalating';
+      else if (secondHalf < firstHalf * 0.8) trend = 'de-escalating';
+
+      return {
+        id: country.toLowerCase().replace(/\s+/g, '-'),
+        name: country,
+        country,
+        region: '',
+        latitude: lat,
+        longitude: lng,
+        severity,
+        eventCount: evts.length,
+        fatalities30d: totalFatalities,
+        trend,
+        primaryType,
+        description: `${evts.length} events, ${totalFatalities} fatalities`,
+      };
+    })
+    .sort((a, b) => b.severity - a.severity);
 }
 
 // Build GeoJSON from DB events

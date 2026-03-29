@@ -214,19 +214,25 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        const sources: NewsSource[] = (data.articles ?? []).map(
-          (a: {
-            title: string;
-            url: string;
-            source_country: string;
-            seendate: string;
-          }) => ({
-            headline: a.title,
-            url: a.url,
-            outlet: a.source_country || "Unknown",
-            time: a.seendate ? formatGdeltDate(a.seendate) : "",
-          }),
-        );
+        const articles = (data.articles ?? []) as {
+          title: string;
+          url: string;
+          source_country: string;
+          seendate: string;
+          language?: string;
+        }[];
+        // Sort English articles first
+        articles.sort((a, b) => {
+          const aEng = (a.language || "").toLowerCase() === "english" ? 0 : 1;
+          const bEng = (b.language || "").toLowerCase() === "english" ? 0 : 1;
+          return aEng - bEng;
+        });
+        const sources: NewsSource[] = articles.map((a) => ({
+          headline: a.title,
+          url: a.url,
+          outlet: a.source_country || "Unknown",
+          time: a.seendate ? formatGdeltDate(a.seendate) : "",
+        }));
         setNewsSources(sources);
       })
       .catch((err) => {
