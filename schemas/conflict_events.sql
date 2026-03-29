@@ -1,5 +1,5 @@
 -- Conflict events table (sourced from ACLED)
--- Run this in Supabase SQL Editor: https://supabase.com/dashboard/project/douraoyjdmhscwqmxfrg/sql
+-- Run this in your Supabase project's SQL editor.
 
 create table conflict_events (
   id bigint primary key,
