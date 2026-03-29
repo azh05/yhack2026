@@ -70,25 +70,10 @@ export default function MapGlobe({
 
   const [mapLoaded, setMapLoaded] = useState(false);
   const selectedIdRef = useRef<string | null>(null);
-  const conflictZonesRef = useRef(conflictZones);
-  const visibleZonesRef = useRef(visibleZones);
-  const onConflictSelectRef = useRef(onConflictSelect);
 
   useEffect(() => {
     selectedIdRef.current = selectedConflict?.id ?? null;
   }, [selectedConflict]);
-
-  useEffect(() => {
-    conflictZonesRef.current = conflictZones;
-  }, [conflictZones]);
-
-  useEffect(() => {
-    visibleZonesRef.current = visibleZones;
-  }, [visibleZones]);
-
-  useEffect(() => {
-    onConflictSelectRef.current = onConflictSelect;
-  }, [onConflictSelect]);
 
   const handleZoomIn = useCallback(() => {
     map.current?.zoomIn({ duration: 300 });
@@ -121,6 +106,14 @@ export default function MapGlobe({
       return true;
     });
   }, [timelineDate, filters, conflictZones]);
+
+  const conflictZonesRef = useRef(conflictZones);
+  const visibleZonesRef = useRef(visibleZones);
+  const onConflictSelectRef = useRef(onConflictSelect);
+
+  useEffect(() => { conflictZonesRef.current = conflictZones; }, [conflictZones]);
+  useEffect(() => { visibleZonesRef.current = visibleZones; }, [visibleZones]);
+  useEffect(() => { onConflictSelectRef.current = onConflictSelect; }, [onConflictSelect]);
 
   // Initialize map
   useEffect(() => {
