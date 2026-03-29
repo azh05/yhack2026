@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
 interface NewsArticle {
@@ -55,6 +55,13 @@ function toGoogleDateString(input: string): string {
 const CACHE_MAX_AGE_HOURS = 6;
 
 export async function GET(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const params = req.nextUrl.searchParams;
   const country = params.get("country");
   const keyword = params.get("keyword") || "conflict";
@@ -77,7 +84,7 @@ export async function GET(req: NextRequest) {
     Date.now() - CACHE_MAX_AGE_HOURS * 60 * 60 * 1000,
   ).toISOString();
 
-  let cacheQuery = supabase
+  let cacheQuery = supabaseServer
     .from("news_articles")
     .select("*")
     .eq("country", country)
@@ -152,7 +159,7 @@ export async function GET(req: NextRequest) {
         pub_date: a.pub_date ? new Date(a.pub_date).toISOString() : null,
       }));
 
-      supabase
+      supabaseServer
         .from("news_articles")
         .upsert(rows, { onConflict: "country,url" })
         .then(() => {});

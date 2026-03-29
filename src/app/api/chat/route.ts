@@ -2,15 +2,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabaseServer as supabase } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
-
 async function geocode(
   placeName: string,
+  mapboxToken: string,
 ): Promise<{ lat: number; lng: number } | null> {
   try {
     const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(placeName)}.json?access_token=${MAPBOX_TOKEN}&limit=1&types=country,region,place,locality`,
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(placeName)}.json?access_token=${mapboxToken}&limit=1&types=country,region,place,locality`,
     );
     const data = await res.json();
     if (data.features && data.features.length > 0) {
@@ -78,6 +76,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json(
+      { error: "GEMINI_API_KEY is not configured" },
+      { status: 503 },
+    );
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   // Step 1: Ask the model what countries are relevant to the query
@@ -145,7 +152,7 @@ Keep responses concise (2-4 paragraphs). Be factual and neutral.`;
   const cmdMatch = response.match(/\{"action":"flyTo","place":"([^"]+)"\}/);
   if (cmdMatch) {
     const placeName = cmdMatch[1];
-    const coords = await geocode(placeName);
+    const coords = await geocode(placeName, MAPBOX_TOKEN);
     if (coords) {
       mapCommand = {
         action: "flyTo",

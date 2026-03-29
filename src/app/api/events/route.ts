@@ -1,7 +1,14 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const params = req.nextUrl.searchParams;
 
   const country = params.get("country");
@@ -17,7 +24,7 @@ export async function GET(req: NextRequest) {
   const pageSize = 1000;
 
   while (allEvents.length < limit) {
-    let query = supabase
+    let query = supabaseServer
       .from("conflict_events")
       .select("*")
       .order("event_date", { ascending: false })

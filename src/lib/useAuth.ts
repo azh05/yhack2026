@@ -10,41 +10,60 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-      },
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, name?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: name ? { data: { full_name: name } } : undefined,
-    });
-    if (error) throw error;
+  const signUp = useCallback(
+    async (email: string, password: string, name?: string) => {
+      if (!supabase) throw new Error("Supabase client is not configured");
 
-    if (data.user) {
-      await supabase.from("email_subscribers").upsert(
-        { email, user_id: data.user.id, is_active: true, frequency: "daily" },
-        { onConflict: "email" },
-      );
-    }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: name ? { data: { full_name: name } } : undefined,
+      });
+      if (error) throw error;
 
-    return data;
-  }, []);
+      if (data.user) {
+        await supabase
+          .from("email_subscribers")
+          .upsert(
+            {
+              email,
+              user_id: data.user.id,
+              is_active: true,
+              frequency: "daily",
+            },
+            { onConflict: "email" },
+          );
+      }
+
+      return data;
+    },
+    [],
+  );
 
   const signIn = useCallback(async (email: string, password: string) => {
+    if (!supabase) throw new Error("Supabase client is not configured");
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -54,6 +73,8 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (!supabase) throw new Error("Supabase client is not configured");
+
     await supabase.auth.signOut();
   }, []);
 

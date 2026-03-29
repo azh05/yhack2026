@@ -3,9 +3,6 @@ import { Resend } from "resend";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
 interface NewsArticle {
   title: string;
   source: string;
@@ -57,6 +54,7 @@ async function fetchNewsForCountry(country: string): Promise<NewsArticle[]> {
 }
 
 async function generateDigestEmail(
+  genAI: GoogleGenerativeAI,
   newsByCountry: Record<string, NewsArticle[]>,
   watchedCountries: string[],
 ): Promise<string> {
@@ -129,6 +127,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!process.env.RESEND_API_KEY) {
+    return NextResponse.json(
+      { error: "RESEND_API_KEY is not configured" },
+      { status: 503 },
+    );
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json(
+      { error: "GEMINI_API_KEY is not configured" },
+      { status: 503 },
+    );
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
   const { frequency } = await req.json();
   const targetFrequency = frequency || "daily";
 
@@ -177,6 +192,7 @@ export async function POST(req: NextRequest) {
       );
 
       const htmlContent = await generateDigestEmail(
+        genAI,
         newsByCountry,
         watchedCountries,
       );

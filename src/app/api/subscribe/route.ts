@@ -1,14 +1,21 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const { email, regions, frequency } = await req.json();
 
   if (!email || typeof email !== "string") {
     return NextResponse.json({ error: "Missing email" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from("email_subscribers")
     .upsert(
       {
@@ -17,7 +24,7 @@ export async function POST(req: NextRequest) {
         frequency: frequency || "daily",
         is_active: true,
       },
-      { onConflict: "email" }
+      { onConflict: "email" },
     )
     .select()
     .single();
@@ -30,13 +37,20 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const { email } = await req.json();
 
   if (!email) {
     return NextResponse.json({ error: "Missing email" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseServer
     .from("email_subscribers")
     .update({ is_active: false })
     .eq("email", email);

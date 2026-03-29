@@ -2,7 +2,6 @@ import { supabaseServer as supabase } from "@/lib/supabase-server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const CACHE_MAX_AGE_HOURS = 168;
 
 async function queryConflictContext(country: string): Promise<string> {
@@ -137,6 +136,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // Fetch ACLED conflict events for real context

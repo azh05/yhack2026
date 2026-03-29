@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
 const ACLED_TOKEN_URL = "https://acleddata.com/oauth/token";
@@ -48,16 +48,28 @@ async function fetchACLEDPage(
 
 function computeSeverity(fatalities: number, eventType: string): number {
   let score = Math.min(10, 1 + Math.log2(fatalities + 1) * 1.5);
-  if (eventType === "Violence against civilians") score = Math.min(10, score + 1);
-  if (eventType === "Explosions/Remote violence") score = Math.min(10, score + 0.5);
+  if (eventType === "Violence against civilians")
+    score = Math.min(10, score + 1);
+  if (eventType === "Explosions/Remote violence")
+    score = Math.min(10, score + 0.5);
   return Math.round(score * 10) / 10;
 }
 
 export async function POST(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const { startDate, endDate } = await req.json();
 
   if (!process.env.ACLED_EMAIL || !process.env.ACLED_PASSWORD) {
-    return NextResponse.json({ error: "ACLED credentials not configured" }, { status: 500 });
+    return NextResponse.json(
+      { error: "ACLED credentials not configured" },
+      { status: 500 },
+    );
   }
 
   const start = startDate || "2024-01-01";
@@ -67,7 +79,10 @@ export async function POST(req: NextRequest) {
   try {
     token = await getACLEDToken();
   } catch (err: any) {
-    return NextResponse.json({ error: `Auth failed: ${err.message}` }, { status: 401 });
+    return NextResponse.json(
+      { error: `Auth failed: ${err.message}` },
+      { status: 401 },
+    );
   }
 
   let totalInserted = 0;
@@ -79,16 +94,21 @@ export async function POST(req: NextRequest) {
     try {
       events = await fetchACLEDPage(token, start, end, page);
     } catch (err: any) {
-      return NextResponse.json({
-        error: `Fetch failed on page ${page}: ${err.message}`,
-        totalInserted,
-      }, { status: 502 });
+      return NextResponse.json(
+        {
+          error: `Fetch failed on page ${page}: ${err.message}`,
+          totalInserted,
+        },
+        { status: 502 },
+      );
     }
 
     if (events.length === 0) break;
 
     const rows = events.map((e: any) => ({
-      id: parseInt(e.event_id_cnty?.replace(/\D/g, "")) || Math.floor(Math.random() * 1000000000),
+      id:
+        parseInt(e.event_id_cnty?.replace(/\D/g, "")) ||
+        Math.floor(Math.random() * 1000000000),
       event_date: e.event_date,
       event_type: e.event_type,
       sub_event_type: e.sub_event_type || null,
@@ -102,12 +122,15 @@ export async function POST(req: NextRequest) {
       fatalities: parseInt(e.fatalities) || 0,
       notes: e.notes || null,
       source: e.source || null,
-      severity_score: computeSeverity(parseInt(e.fatalities) || 0, e.event_type),
+      severity_score: computeSeverity(
+        parseInt(e.fatalities) || 0,
+        e.event_type,
+      ),
     }));
 
     for (let i = 0; i < rows.length; i += 1000) {
       const batch = rows.slice(i, i + 1000);
-      const { error } = await supabase
+      const { error } = await supabaseServer
         .from("conflict_events")
         .upsert(batch, { onConflict: "id" });
 

@@ -1,14 +1,21 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseServer } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const userId = req.nextUrl.searchParams.get("user_id");
 
   if (!userId) {
     return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from("watchlist")
     .select("*")
     .eq("user_id", userId)
@@ -22,13 +29,23 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const { user_id, country } = await req.json();
 
   if (!user_id || !country) {
-    return NextResponse.json({ error: "Missing user_id or country" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing user_id or country" },
+      { status: 400 },
+    );
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from("watchlist")
     .upsert({ user_id, country }, { onConflict: "user_id,country" })
     .select()
@@ -40,7 +57,10 @@ export async function POST(req: NextRequest) {
 
   // Also update email subscriber regions
   try {
-    await supabase.rpc("add_region_to_subscriber", { p_user_id: user_id, p_country: country });
+    await supabaseServer.rpc("add_region_to_subscriber", {
+      p_user_id: user_id,
+      p_country: country,
+    });
   } catch {
     // RPC may not exist yet — ignore
   }
@@ -49,13 +69,23 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
   const { user_id, country } = await req.json();
 
   if (!user_id || !country) {
-    return NextResponse.json({ error: "Missing user_id or country" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing user_id or country" },
+      { status: 400 },
+    );
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseServer
     .from("watchlist")
     .delete()
     .eq("user_id", user_id)

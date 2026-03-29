@@ -1,16 +1,31 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { supabase } from "@/lib/supabase";
+import { supabaseServer } from "@/lib/supabase-server";
 import { Resend } from "resend";
 import { NextRequest, NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const resend = new Resend(process.env.RESEND_API_KEY!);
-
 export async function POST(req: NextRequest) {
+  if (!supabaseServer) {
+    return NextResponse.json(
+      { error: "Supabase not configured" },
+      { status: 503 },
+    );
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json(
+      { error: "Gemini API key not configured" },
+      { status: 503 },
+    );
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const { news, sendEmail } = await req.json();
 
   if (!news || typeof news !== "string") {
-    return NextResponse.json({ error: "Missing 'news' field" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing 'news' field" },
+      { status: 400 },
+    );
   }
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -33,9 +48,10 @@ ${news}`;
 
   let emailResult = null;
 
-  if (sendEmail) {
+  if (sendEmail && process.env.RESEND_API_KEY) {
+    const resend = new Resend(process.env.RESEND_API_KEY);
     // Get active subscribers
-    const { data: subscribers } = await supabase
+    const { data: subscribers } = await supabaseServer
       .from("email_subscribers")
       .select("email")
       .eq("is_active", true);
@@ -61,14 +77,16 @@ ${news}`;
             to: sub.email,
             subject: `War — Conflict Update`,
             html,
-          })
-        )
+          }),
+        ),
       );
 
       const sent = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.filter((r) => r.status === "rejected").length;
       emailResult = { sent, failed, total: subscribers.length };
     }
+  } else if (sendEmail && !process.env.RESEND_API_KEY) {
+    emailResult = { error: "Resend API key not configured" };
   }
 
   return NextResponse.json({ summary, emailResult });
