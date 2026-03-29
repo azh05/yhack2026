@@ -103,7 +103,7 @@ export function aggregateEventsToZones(events: DBEvent[]): {
   severity: number;
   eventCount: number;
   fatalities30d: number;
-  trend: 'escalating' | 'stable' | 'de-escalating';
+  trend: 'escalating' | 'persistent' | 'de-escalating';
   primaryType: string;
   description: string;
 }[] {
@@ -135,7 +135,7 @@ export function aggregateEventsToZones(events: DBEvent[]): {
       const mid = Math.floor(sorted.length / 2);
       const firstHalf = sorted.slice(0, mid).length;
       const secondHalf = sorted.slice(mid).length;
-      let trend: 'escalating' | 'stable' | 'de-escalating' = 'stable';
+      let trend: 'escalating' | 'persistent' | 'de-escalating' = 'persistent';
       if (secondHalf > firstHalf * 1.2) trend = 'escalating';
       else if (secondHalf < firstHalf * 0.8) trend = 'de-escalating';
 
@@ -180,7 +180,7 @@ export function buildGeoJSONFromEvents(events: DBEvent[]) {
           fatalities30d: e.fatalities,
           eventCount: 1,
           country: e.country,
-          trend: 'stable',
+          trend: 'persistent',
           event_date: e.event_date,
           event_type: e.event_type,
         },

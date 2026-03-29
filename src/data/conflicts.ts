@@ -40,7 +40,7 @@ export interface ConflictZone {
   severity: number;
   eventCount: number;
   fatalities30d: number;
-  trend: "escalating" | "stable" | "de-escalating";
+  trend: "escalating" | "persistent" | "de-escalating";
   primaryType: string;
   eventType: 'battles' | 'violence_civilians' | 'explosions' | 'protests' | 'riots' | 'strategic';
   description: string;
@@ -88,7 +88,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     severity: 9.5,
     eventCount: 287,
     fatalities30d: 3210,
-    trend: 'stable',
+    trend: 'persistent',
     primaryType: 'Armed Conflict',
     eventType: 'violence_civilians',
     description: 'Devastating military operation with extreme civilian toll and humanitarian crisis.',
@@ -146,7 +146,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     severity: 8.8,
     eventCount: 518,
     fatalities30d: 2340,
-    trend: 'stable',
+    trend: 'persistent',
     primaryType: 'Interstate War',
     eventType: 'explosions',
     description: 'Full-scale interstate war with active frontlines across eastern and southern Ukraine.',
@@ -291,7 +291,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     severity: 6.8,
     eventCount: 112,
     fatalities30d: 243,
-    trend: 'stable',
+    trend: 'persistent',
     primaryType: 'Civil War',
     eventType: 'explosions',
     description: 'Houthi-government conflict with ongoing military operations and humanitarian emergency.',
@@ -320,7 +320,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     severity: 6.5,
     eventCount: 98,
     fatalities30d: 178,
-    trend: 'stable',
+    trend: 'persistent',
     primaryType: 'Counterterrorism',
     eventType: 'battles',
     description: 'Ongoing operations against al-Shabaab in southern and central regions.',
@@ -378,7 +378,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     severity: 6.0,
     eventCount: 76,
     fatalities30d: 112,
-    trend: 'stable',
+    trend: 'persistent',
     primaryType: 'Gang Violence',
     eventType: 'riots',
     description: 'Armed gangs controlling large sections of Port-au-Prince with extortion and kidnapping.',
@@ -436,7 +436,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     severity: 5.8,
     eventCount: 145,
     fatalities30d: 267,
-    trend: 'stable',
+    trend: 'persistent',
     primaryType: 'Organized Crime',
     eventType: 'violence_civilians',
     description: 'Cartel territorial warfare concentrated in Sinaloa, Michoac\u00e1n, and Chiapas.',
@@ -494,7 +494,7 @@ export const CONFLICT_ZONES: ConflictZone[] = [
     severity: 5.2,
     eventCount: 63,
     fatalities30d: 87,
-    trend: 'stable',
+    trend: 'persistent',
     primaryType: 'Armed Conflict',
     eventType: 'strategic',
     description: 'ELN, FARC dissidents, and other armed groups active in border regions and Pacific coast.',

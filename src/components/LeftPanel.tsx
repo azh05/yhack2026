@@ -45,7 +45,7 @@ function TrendBadge({ trend }: { trend: string }) {
   const colors = {
     escalating:
       "text-severity-high bg-severity-high/10 border-severity-high/20",
-    stable: "text-muted-light bg-surface-300/50 border-white/[0.06]",
+    persistent: "text-muted-light bg-surface-300/50 border-white/[0.06]",
     "de-escalating": "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
   };
   return (

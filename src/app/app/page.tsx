@@ -64,6 +64,7 @@ export default function AppPage() {
   const { watchlist, isWatching, addCountry, removeCountry } = useWatchlist(user?.id);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
 
   const handleMapCommand = useCallback(
     (cmd: { action: string; country: string; lat: number; lng: number }) => {
@@ -165,6 +166,10 @@ export default function AppPage() {
               addCountry(country);
             }
           }}
+          onAskAI={(message) => {
+            setChatOpen(true);
+            setPendingChatMessage(message);
+          }}
         />
       )}
 
@@ -179,6 +184,8 @@ export default function AppPage() {
         isOpen={chatOpen}
         onToggle={() => setChatOpen(false)}
         onMapCommand={handleMapCommand}
+        pendingMessage={pendingChatMessage}
+        onPendingMessageHandled={() => setPendingChatMessage(null)}
       />
 
       {!leftPanelOpen && (

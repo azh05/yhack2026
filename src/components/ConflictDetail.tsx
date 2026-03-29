@@ -24,6 +24,7 @@ import {
   Shield,
   Activity,
   Loader2,
+  Bot,
 } from "lucide-react";
 import {
   getSeverityColor,
@@ -38,18 +39,7 @@ interface ConflictDetailProps {
   onClose: () => void;
   isWatching?: boolean;
   onToggleWatch?: (country: string) => void;
-}
-
-function formatGdeltDate(seendate: string): string {
-  try {
-    // GDELT format: "20250328T120000Z"
-    const year = seendate.slice(0, 4);
-    const month = seendate.slice(4, 6);
-    const day = seendate.slice(6, 8);
-    return `${year}-${month}-${day}`;
-  } catch {
-    return seendate;
-  }
+  onAskAI?: (message: string) => void;
 }
 
 function SeverityMeter({ severity }: { severity: number }) {
@@ -122,7 +112,7 @@ function AnalysisSection({
   );
 }
 
-export default function ConflictDetail({ zone, onClose, isWatching = false, onToggleWatch }: ConflictDetailProps) {
+export default function ConflictDetail({ zone, onClose, isWatching = false, onToggleWatch, onAskAI }: ConflictDetailProps) {
   const color = getSeverityColor(zone.severity);
   const label = getSeverityLabel(zone.severity);
 
@@ -184,41 +174,22 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
     if (fetchedNewsForRef.current === zone.country) return;
 
     let cancelled = false;
-    const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
     setNewsLoading(true);
-    fetch(`${backendUrl}/api/news?country=${encodeURIComponent(zone.country)}`)
+    fetch(`/api/news?country=${encodeURIComponent(zone.country)}&keyword=conflict&limit=8`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
         const articles = (data.articles ?? []) as {
           title: string;
           url: string;
-          source_country: string;
-          seendate: string;
-          language?: string;
+          source: string;
+          pub_date: string;
         }[];
-        // Sort English articles first
-        const ENGLISH_COUNTRIES = new Set([
-          'United States', 'United Kingdom', 'Canada', 'Australia',
-          'New Zealand', 'Ireland', 'South Africa', 'Nigeria',
-          'Kenya', 'Ghana', 'India', 'Singapore', 'Jamaica',
-        ]);
-        const isLikelyEnglish = (a: { language?: string; title: string; source_country: string }) => {
-          if ((a.language || '').toLowerCase() === 'english') return true;
-          if (ENGLISH_COUNTRIES.has(a.source_country)) return true;
-          // Check title: only basic ASCII letters, no accented/non-Latin chars
-          const asciiRatio = a.title.replace(/[^a-zA-Z]/g, '').length / Math.max(1, a.title.replace(/\s/g, '').length);
-          return asciiRatio > 0.85;
-        };
-        // Filter to English-only, then sort English-country sources first
-        const englishArticles = articles.filter(a => isLikelyEnglish(a));
-        const finalArticles = englishArticles.length > 0 ? englishArticles : articles.slice(0, 5);
-        const sources: NewsSource[] = finalArticles.map((a) => ({
+        const sources: NewsSource[] = articles.map((a) => ({
           headline: a.title,
           url: a.url,
-          outlet: a.source_country || "Unknown",
-          time: a.seendate ? formatGdeltDate(a.seendate) : "",
+          outlet: a.source || "Unknown",
+          time: a.pub_date ? new Date(a.pub_date).toLocaleDateString() : "",
         }));
         setNewsSources(sources);
         fetchedNewsForRef.current = zone.country;
@@ -326,9 +297,9 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
               frequency
             </span>
           )}
-          {zone.trend === "stable" && (
+          {zone.trend === "persistent" && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-300/50 border border-white/[0.06] text-2xs font-mono text-muted-light">
-              <Minus className="w-3 h-3" /> Stable — no significant change in
+              <Minus className="w-3 h-3" /> Persistent — no significant change in
               intensity
             </span>
           )}
@@ -446,6 +417,19 @@ export default function ConflictDetail({ zone, onClose, isWatching = false, onTo
             </p>
           )}
         </AnalysisSection>
+
+        {/* Go Deeper with AI */}
+        {onAskAI && (
+          <div className="px-5 py-3">
+            <button
+              onClick={() => onAskAI(`Give me a deeper analysis of the conflict in ${zone.country}. Cover the root causes, current dynamics, key turning points, and what to watch for next.`)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent/15 border border-accent/20 text-xs font-display font-semibold text-accent-glow hover:bg-accent/25 transition-colors"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              Go Deeper with AI
+            </button>
+          </div>
+        )}
 
         {/* Data Attribution */}
         <div className="px-5 py-2">

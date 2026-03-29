@@ -79,10 +79,10 @@ export function getConflictAtDate(zone: ConflictZone, date: Date): ConflictZone 
   const prevSeverity = zone.severity + prevWave + prevPeak + (tPrev - 0.5) * (traj.peakDelta > 0 ? 0.5 : -0.3);
   const derivative = newSeverity - prevSeverity;
 
-  let trend: 'escalating' | 'stable' | 'de-escalating';
+  let trend: 'escalating' | 'persistent' | 'de-escalating';
   if (derivative > 0.15) trend = 'escalating';
   else if (derivative < -0.15) trend = 'de-escalating';
-  else trend = 'stable';
+  else trend = 'persistent';
 
   return {
     ...zone,

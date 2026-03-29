@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Globe2, ArrowLeft, Skull, MapPin, AlertTriangle,
   TrendingUp, TrendingDown, Minus, Newspaper, ExternalLink, Loader2, Share2,
+  MessageSquare, Send, Sparkles, Bot, ChevronDown,
 } from 'lucide-react';
 
 interface Briefing {
@@ -248,6 +249,9 @@ export default function ConflictPage() {
           )}
         </div>
 
+        {/* AI Chat */}
+        <BriefingChat country={country} briefing={briefing} />
+
         {/* Footer */}
         <div className="border-t border-white/[0.04] mt-10 pt-6 text-center">
           <p className="text-xs text-white/20 font-mono">
@@ -255,6 +259,131 @@ export default function ConflictPage() {
           </p>
         </div>
       </main>
+    </div>
+  );
+}
+
+function BriefingChat({ country, briefing }: { country: string; briefing: Briefing | null }) {
+  const [messages, setMessages] = useState<{ role: string; text: string }[]>([
+    {
+      role: 'assistant',
+      text: `Ask me anything about the conflict in ${country}. I can go deeper on any section of the briefing, explain key actors, historical context, or humanitarian implications.`,
+    },
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `[Context: User is reading the conflict briefing for ${country}. Briefing summary: ${briefing ? `Background: ${briefing.background?.slice(0, 200)}. Situation: ${briefing.current_situation?.slice(0, 200)}` : 'Not yet loaded.'}]\n\n${userMessage}`,
+          history: messages.slice(-10),
+        }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${data.error}` }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', text: data.response }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', text: 'Failed to connect. Please try again.' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-white/[0.04] pt-8">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 text-sm font-display font-semibold mb-4 group cursor-pointer"
+      >
+        <Bot className="w-4 h-4 text-accent-glow" />
+        Ask AI — Go Deeper
+        <ChevronDown className={`w-3.5 h-3.5 text-white/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="rounded-xl bg-surface-200/30 border border-white/[0.06] overflow-hidden">
+          {/* Messages */}
+          <div className="max-h-[400px] overflow-y-auto p-4 space-y-3">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-accent/20 text-white/90 border border-accent/20'
+                      : 'bg-surface-200/80 text-white/70 border border-white/[0.04]'
+                  }`}
+                >
+                  {msg.role === 'assistant' && (
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Sparkles className="w-3 h-3 text-accent-glow/60" />
+                      <span className="text-2xs font-mono text-accent-glow/50">WAR AI</span>
+                    </div>
+                  )}
+                  <div className="whitespace-pre-wrap">{msg.text}</div>
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-surface-200/80 border border-white/[0.04] rounded-xl px-3.5 py-2.5">
+                  <div className="flex items-center gap-2 text-xs text-white/40">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Analyzing...
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-3 border-t border-white/[0.04]">
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-surface-200/80 border border-white/[0.06] focus-within:border-accent/30 transition-colors">
+              <MessageSquare className="w-4 h-4 text-white/20 shrink-0" />
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder={`Ask about ${country}...`}
+                className="flex-1 bg-transparent text-sm text-white/90 placeholder:text-white/25 outline-none font-body"
+                disabled={isLoading}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || isLoading}
+                className="p-1.5 rounded-lg bg-accent/80 text-white hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

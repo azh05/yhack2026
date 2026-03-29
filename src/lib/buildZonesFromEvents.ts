@@ -146,7 +146,7 @@ export function buildZonesFromEvents(events: DBEvent[]): ConflictZone[] {
     const countChange = firstHalfCount > 0 ? (secondHalfCount - firstHalfCount) / firstHalfCount : 0;
     const trendScore = fatChange * 0.6 + countChange * 0.4;
 
-    let trend: 'escalating' | 'stable' | 'de-escalating' = 'stable';
+    let trend: 'escalating' | 'persistent' | 'de-escalating' = 'persistent';
     if (trendScore > 0.15) trend = 'escalating';
     else if (trendScore < -0.15) trend = 'de-escalating';
 
