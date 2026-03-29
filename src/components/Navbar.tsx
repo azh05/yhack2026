@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Globe2,
   Bell,
@@ -9,10 +9,22 @@ import {
   Zap,
   Radio,
   ChevronDown,
-} from 'lucide-react';
+} from "lucide-react";
+import { ConflictZone } from "@/data/conflicts";
 
-export default function Navbar() {
+interface NavbarProps {
+  conflictZones: ConflictZone[];
+  isLoading?: boolean;
+}
+
+export default function Navbar({ conflictZones, isLoading }: NavbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
+
+  const activeConflicts = conflictZones.length;
+  const escalatingCount = conflictZones.filter(
+    (z) => z.trend === "escalating",
+  ).length;
+  const countriesCount = new Set(conflictZones.map((z) => z.country)).size;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 glass border-b border-white/[0.04]">
@@ -47,15 +59,24 @@ export default function Navbar() {
 
           <div className="flex items-center gap-4 text-2xs font-mono text-muted-light/50">
             <span>
-              <span className="text-white/80 font-medium">46</span> active conflicts
+              <span className="text-white/80 font-medium">
+                {isLoading ? "..." : activeConflicts}
+              </span>{" "}
+              active conflicts
             </span>
             <span className="text-white/10">|</span>
             <span>
-              <span className="text-severity-high/80 font-medium">16</span> escalating
+              <span className="text-severity-high/80 font-medium">
+                {isLoading ? "..." : escalatingCount}
+              </span>{" "}
+              escalating
             </span>
             <span className="text-white/10">|</span>
             <span>
-              <span className="text-white/80 font-medium">76</span> countries
+              <span className="text-white/80 font-medium">
+                {isLoading ? "..." : countriesCount}
+              </span>{" "}
+              countries
             </span>
           </div>
         </div>

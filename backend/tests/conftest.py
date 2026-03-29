@@ -81,8 +81,12 @@ def sample_events() -> list[ACLEDEvent]:
 @pytest.fixture
 def client() -> TestClient:
     """FastAPI test client with mocked Supabase cache."""
+    from app.services import cache
+    cache._store.clear()
     with patch("app.routers.conflicts.get_cached_events", return_value=None), \
-         patch("app.routers.conflicts.upsert_events"):
+         patch("app.routers.conflicts.upsert_events"), \
+         patch("app.routers.news.get_cached_news", return_value=None), \
+         patch("app.routers.news.upsert_news_articles"):
         from app.main import app
         with TestClient(app) as c:
             yield c

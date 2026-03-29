@@ -11,7 +11,7 @@ from app.routers import conflicts, news
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    app.state.http_client = httpx.AsyncClient(timeout=30.0)
+    app.state.http_client = httpx.AsyncClient(timeout=60.0)
     app.state.settings = settings
     yield
     await app.state.http_client.aclose()

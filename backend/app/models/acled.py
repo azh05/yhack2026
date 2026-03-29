@@ -52,3 +52,18 @@ class ConflictGeoJSON(BaseModel):
     type: Literal["FeatureCollection"] = "FeatureCollection"
     features: list[ConflictFeature]
     severity_summary: SeverityScore
+
+
+class ConflictZone(BaseModel):
+    id: str                          # slugified country name, e.g. "ukraine"
+    name: str                        # human-readable, e.g. "Ukraine"
+    country: str                     # ACLED country string
+    region: str                      # geographical region
+    latitude: float                  # centroid lat of all events
+    longitude: float                 # centroid lng of all events
+    severity: float                  # severity_summary.total
+    eventCount: int
+    fatalities30d: int               # total fatalities in the window
+    trend: Literal['escalating', 'stable', 'de-escalating']
+    primaryType: str                 # most common event_type
+    description: str                 # auto-generated one-liner
