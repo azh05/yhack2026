@@ -88,8 +88,8 @@ export default function AppPage() {
         }),
       );
       setConflictZones(zones);
-    } catch (err) {
-      console.error('[fetchZones]', err);
+    } catch {
+      // Backend unavailable — silently fall back to local conflict data
       setConflictZones([]);
     } finally {
       setZonesLoading(false);

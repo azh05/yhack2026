@@ -636,8 +636,19 @@ export default function ConflictDetail({ zone, onClose }: ConflictDetailProps) {
             if (navigator.share) {
               try { await navigator.share({ title: zone.name, text, url }); } catch {}
             } else {
-              await navigator.clipboard.writeText(url);
-              setShareMsg('Copied!');
+              try {
+                await navigator.clipboard.writeText(url);
+                setShareMsg('Copied!');
+              } catch {
+                // Fallback: select text from a temporary input
+                const input = document.createElement('input');
+                input.value = url;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                setShareMsg('Copied!');
+              }
               setTimeout(() => setShareMsg(''), 2000);
             }
           }}
