@@ -189,7 +189,7 @@ export default function AppPage() {
       )}
 
       {!rightPanelOpen && !chatOpen && (
-        <div className="fixed right-4 top-20 z-20 flex flex-col gap-2">
+        <div className="fixed right-4 top-44 z-20 flex flex-col gap-2">
           <button
             onClick={() => setRightPanelOpen(true)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg glass glass-hover transition-all"

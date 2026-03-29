@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Globe2, ArrowLeft, Skull, MapPin, AlertTriangle,
@@ -23,6 +23,79 @@ interface NewsArticle {
   seendate: string;
 }
 
+function CountryOutline({ country }: { country: string }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [pathData, setPathData] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Fetch country GeoJSON from a free API
+    fetch(`https://nominatim.openstreetmap.org/search?country=${encodeURIComponent(country)}&polygon_geojson=1&format=json&limit=1`, {
+      headers: { 'User-Agent': 'ConflictLens/1.0' },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!data?.[0]?.geojson) return;
+        const geo = data[0].geojson;
+        const bbox = data[0].boundingbox;
+        // Convert GeoJSON coords to SVG path
+        const paths = geoToSvgPaths(geo, bbox);
+        setPathData(paths);
+      })
+      .catch(() => {});
+  }, [country]);
+
+  if (pathData.length === 0) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center pointer-events-none overflow-hidden opacity-[0.12]">
+      <svg
+        ref={svgRef}
+        viewBox="0 0 800 600"
+        className="w-[2000px] h-[1500px]"
+        fill="white"
+        fillOpacity="0.04"
+        stroke="white"
+        strokeWidth="0.8"
+      >
+        {pathData.map((d, i) => (
+          <path key={i} d={d} />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// Convert GeoJSON coordinates to SVG path strings
+function geoToSvgPaths(geojson: any, bbox: string[]): string[] {
+  const [minLat, maxLat, minLng, maxLng] = bbox.map(Number);
+  const width = 800;
+  const height = 600;
+  const padding = 40;
+
+  const project = (lng: number, lat: number): [number, number] => {
+    const x = padding + ((lng - minLng) / (maxLng - minLng)) * (width - padding * 2);
+    const y = padding + ((maxLat - lat) / (maxLat - minLat)) * (height - padding * 2);
+    return [x, y];
+  };
+
+  const ringToPath = (ring: number[][]) => {
+    return ring.map((coord, i) => {
+      const [x, y] = project(coord[0], coord[1]);
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ') + ' Z';
+  };
+
+  const paths: string[] = [];
+  if (geojson.type === 'Polygon') {
+    paths.push(ringToPath(geojson.coordinates[0]));
+  } else if (geojson.type === 'MultiPolygon') {
+    for (const polygon of geojson.coordinates) {
+      paths.push(ringToPath(polygon[0]));
+    }
+  }
+  return paths;
+}
+
 export default function ConflictPage() {
   const params = useParams();
   const router = useRouter();
@@ -43,15 +116,16 @@ export default function ConflictPage() {
       .catch(() => {})
       .finally(() => setBriefingLoading(false));
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://127.0.0.1:8000';
-    fetch(`${backendUrl}/api/news?country=${encodeURIComponent(country)}`)
+    fetch(`/api/news?country=${encodeURIComponent(country)}&keyword=conflict&limit=8`)
       .then(res => res.json())
       .then(data => {
-        const articles = (data.articles ?? []) as NewsArticle[];
-        // English first
-        const isEng = (a: NewsArticle) => /^[\x20-\x7E]{10,}/.test(a.title);
-        articles.sort((a, b) => (isEng(a) ? 0 : 1) - (isEng(b) ? 0 : 1));
-        setNews(articles.slice(0, 8));
+        const articles = (data.articles ?? []).map((a: any) => ({
+          title: a.title,
+          url: a.url,
+          source_country: a.source || '',
+          seendate: a.pubDate || a.pub_date || '',
+        }));
+        setNews(articles);
       })
       .catch(() => {})
       .finally(() => setNewsLoading(false));
@@ -64,7 +138,9 @@ export default function ConflictPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#08090d] text-white font-body">
+    <div className="min-h-screen bg-[#08090d] text-white font-body relative">
+      <CountryOutline country={country} />
+
       {/* Header */}
       <header className="border-b border-white/[0.04] px-6 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
