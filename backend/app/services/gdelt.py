@@ -17,7 +17,7 @@ async def fetch_gdelt_news(
     max_records: int = 25,
 ) -> list[GDELTArticle]:
     params = {
-        "query": query,
+        "query": f"{query} sourcelang:english",
         "mode": "ArtList",
         "maxrecords": str(max_records),
         "format": "json",
